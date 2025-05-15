@@ -13,7 +13,7 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - _Priorità: Altissima_
   - _Dipendenze: Nessuna_
 
-- [ ] **1.2. Primo Avvio e Selezione Cartella di Gioco:**
+- [x] **1.2. Primo Avvio e Selezione Cartella di Gioco:**
 
   - [x] Implementata la logica per richiedere all'utente di selezionare la cartella di gioco di InZOI al primo avvio (tramite modale `GameFolderSetup`).
   - [x] Salvataggio del percorso persistente tramite `electron-store`.
@@ -25,9 +25,9 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
 - [ ] **1.3. Configurazione Supporto Mod (InZOI Mod Enabler):**
 
-  - [ ] Ricercare informazioni su "InZOI Mod Enabler di FrancisLouis" per capire quali file sono necessari e come installarli.
-  - [ ] Implementare la logica per verificare se i file di supporto sono presenti.
-  - [ ] Se non presenti, offrire all'utente di installarli (potrebbe richiedere il download e la copia di file specifici nella cartella di gioco).
+  - [x] Ricercare informazioni su "InZOI Mod Enabler di FrancisLouis" per capire quali file sono necessari e come installarli.
+  - [x] Implementare la logica per verificare se i file di supporto sono presenti.
+  - [x] Se non presenti, offrire all'utente di installarli (potrebbe richiedere il download e la copia di file specifici nella cartella di gioco).
 
   - _Priorità: Altissima_
   - _Dipendenze: Fase 1.2_
@@ -102,6 +102,15 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
   - _Priorità: Medio-Bassa_
   - _Dipendenze: Fase 1.4, Fase 1.6_
+
+- [ ] **2.5. Download Dinamico Mod Enabler (Opzionale):**
+
+  - [ ] Valutare e implementare il download automatico/aggiornamento dell'InZOI Mod Enabler tramite API di Nexus Mods.
+  - [ ] Gestire autenticazione API (chiave utente o registrazione app).
+  - [ ] Implementare logica di download ed estrazione.
+
+  - _Priorità: Media (da valutare post Fase 1)_
+  - _Dipendenze: Fase 1.3, Connessione Internet_
 
 ## Fase 3: Finalizzazione e Distribuzione
 

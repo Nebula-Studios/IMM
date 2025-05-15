@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
-
+import { Toaster } from '@/components/ui/sonner.tsx';
 import './index.css';
 
 // Global error handler for the renderer process
@@ -28,13 +28,10 @@ window.onerror = (message, source, lineno, colno, error) => {
   return true;
 };
 
-import './demos/ipc';
-// If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.
-// import './demos/node'
-
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />
+    <Toaster />
   </React.StrictMode>
 );
 

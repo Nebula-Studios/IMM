@@ -109,7 +109,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
       <div className={modalOverlayStyle}>
         <div className={glassCardStyle}>
           <Loader2 className="h-8 w-8 animate-spin text-blue-400 mb-4" />
-          <p className="text-slate-300 text-lg">Inizializzazione...</p>
+          <p className="text-slate-300 text-lg">Initializing...</p>
         </div>
       </div>
     );
@@ -120,7 +120,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
       <div className={modalOverlayStyle}>
         <div className={glassCardStyle}>
           <h2 className="text-2xl font-semibold text-red-400 mb-4">
-            Errore di Configurazione Iniziale
+            Initial Setup Error
           </h2>
           <p className="text-slate-300 mb-6">{error}</p>
           <Button
@@ -131,10 +131,10 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
           >
             {isProcessing ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Attendere...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please wait...
               </>
             ) : (
-              'Riprova Selezione Cartella'
+              'Retry Folder Selection'
             )}
           </Button>
         </div>
@@ -146,11 +146,11 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
     <div className={modalOverlayStyle}>
       <div className={glassCardStyle}>
         <h2 className="text-2xl font-semibold text-slate-100 mb-3">
-          Benvenuto in InZOI Mod Manager!
+          Welcome to InZOI Mod Manager!
         </h2>
         <p className="text-slate-400 mb-8 max-w-md">
-          Per iniziare, seleziona la cartella principale di installazione del
-          gioco InZOI. Questo passaggio è necessario solo la prima volta.
+          To get started, please select your main InZOI game installation
+          folder. This step is only required once.
         </p>
         <Button
           onClick={handleSelectFolder}
@@ -160,11 +160,10 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
         >
           {isProcessing ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Selezione in
-              corso...
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Selecting...
             </>
           ) : (
-            'Seleziona Cartella InZOI'
+            'Select InZOI Folder'
           )}
         </Button>
       </div>

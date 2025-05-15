@@ -24,6 +24,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     error?: string;
   }> => ipcRenderer.invoke('clear-game-folder-path'),
 
+  // Mod Enabler Status
+  checkModEnablerStatus: (): Promise<{
+    checked: boolean;
+    dsoundExists?: boolean;
+    bitfixFolderExists?: boolean;
+    error?: string;
+  }> => ipcRenderer.invoke('check-mod-enabler-status'),
+
+  // Shell operations
+  openExternalLink: (url: string): Promise<void> => {
+    // Qui potremmo aggiungere controlli di sicurezza sull'URL se necessario,
+    // per esempio, per assicurarsi che sia un URL http/https
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return ipcRenderer.invoke('open-external-link', url);
+    }
+    // Rifiuta se l'URL non è http o https
+    return Promise.reject(
+      new Error('URL non valido. Sono permessi solo link http/https.')
+    );
+  },
+
   // Update related IPC invocations
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   startDownload: () => ipcRenderer.invoke('start-download'),
@@ -140,11 +161,11 @@ function useLoading() {
 
 // ----------------------------------------------------------------------
 
-const { appendLoading, removeLoading } = useLoading();
-domReady().then(appendLoading);
+// const { appendLoading, removeLoading } = useLoading();
+// domReady().then(appendLoading);
 
-window.onmessage = (ev) => {
-  ev.data.payload === 'removeLoading' && removeLoading();
-};
+// window.onmessage = (ev) => {
+//   ev.data.payload === 'removeLoading' && removeLoading();
+// };
 
-setTimeout(removeLoading, 4999);
+// setTimeout(removeLoading, 4999);

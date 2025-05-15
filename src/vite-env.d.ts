@@ -28,6 +28,19 @@ interface Window {
       error?: string;
     }>;
 
+    // Mod Enabler Status
+    checkModEnablerStatus: () => Promise<{
+      checked: boolean;
+      dsoundExists?: boolean;
+      bitfixFolderExists?: boolean;
+      error?: string;
+    }>;
+
+    // Shell operations
+    openExternalLink: (
+      url: string
+    ) => Promise<{ success: boolean; error?: string }>;
+
     // Update related IPC invocations
     checkUpdate: () => Promise<any>; // Consider defining a more specific return type if known
     startDownload: () => Promise<void>; // Or a more specific type if it returns something

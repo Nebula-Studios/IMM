@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
 import { update } from './update.js';
 import log from 'electron-log';
 import Store from 'electron-store';
@@ -67,6 +68,8 @@ async function createWindow() {
   win = new BrowserWindow({
     title: 'Main window',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+    width: 1280,
+    height: 720,
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
@@ -178,7 +181,7 @@ ipcMain.handle('save-game-folder-path', async (event, folderPath: string) => {
       return {
         success: false,
         error:
-          'La cartella selezionata non si chiama "InZOI". Assicurati di selezionare la cartella di installazione principale del gioco.',
+          'The selected folder is not named "InZOI". Please ensure you select the main game installation folder.',
       };
     }
 
@@ -187,7 +190,7 @@ ipcMain.handle('save-game-folder-path', async (event, folderPath: string) => {
     return { success: true, path: folderPath };
   } else {
     log.error('Invalid folderPath received for saving:', folderPath);
-    return { success: false, error: 'Percorso cartella non valido.' };
+    return { success: false, error: 'Invalid folder path provided.' };
   }
 });
 
@@ -232,3 +235,103 @@ ipcMain.on(
 );
 
 // --- End IPC Handlers for Game Folder ---
+
+// --- IPC Handlers for Mod Enabler ---
+interface ModEnablerStatus {
+  dsoundExists: boolean;
+  bitfixFolderExists: boolean;
+}
+
+// Funzione helper per controllare lo stato del Mod Enabler
+async function getModEnablerStatusInternal(
+  gameFolderPath: string
+): Promise<ModEnablerStatus> {
+  log.info('[Main] Checking Mod Enabler status for path:', gameFolderPath);
+  const dsoundPath = path.join(
+    gameFolderPath,
+    'BlueClient',
+    'Binaries',
+    'Win64',
+    'dsound.dll'
+  );
+  const bitfixFolderPath = path.join(
+    gameFolderPath,
+    'BlueClient',
+    'Binaries',
+    'Win64',
+    'bitfix'
+  );
+
+  try {
+    const dsoundExists = fs.existsSync(dsoundPath);
+    const bitfixFolderExists =
+      fs.existsSync(bitfixFolderPath) &&
+      fs.lstatSync(bitfixFolderPath).isDirectory();
+
+    log.info(`[Main] dsound.dll exists: ${dsoundExists} at ${dsoundPath}`);
+    log.info(
+      `[Main] bitfix folder exists: ${bitfixFolderExists} at ${bitfixFolderPath}`
+    );
+
+    return { dsoundExists, bitfixFolderExists };
+  } catch (error) {
+    log.error('[Main] Error checking mod enabler file/folder status:', error);
+    // Se c'è un errore nell'accesso ai file, consideriamo che non esistano.
+    return { dsoundExists: false, bitfixFolderExists: false };
+  }
+}
+
+// Handler IPC per checkModEnablerStatus
+ipcMain.handle('check-mod-enabler-status', async () => {
+  const gameFolderPath = store.get('gameFolderPath');
+  if (!gameFolderPath) {
+    log.warn('[Main] check-mod-enabler-status: Game folder path not set.');
+    return {
+      checked: false,
+      error: 'Game folder path not set.',
+    };
+  }
+
+  log.info(
+    '[Main] Renderer requested to check Mod Enabler status. Game folder path is:',
+    gameFolderPath
+  );
+  try {
+    const status = await getModEnablerStatusInternal(gameFolderPath);
+    return {
+      checked: true,
+      ...status,
+    };
+  } catch (error: any) {
+    log.error('[Main] Error in check-mod-enabler-status IPC handler:', error);
+    return {
+      checked: true,
+      dsoundExists: false,
+      bitfixFolderExists: false,
+      error: error.message || 'Unknown error during Mod Enabler verification.',
+    };
+  }
+});
+
+// --- End IPC Handlers for Mod Enabler ---
+
+// --- IPC Handler for Opening External Links ---
+ipcMain.handle('open-external-link', async (event, url: string) => {
+  log.info(`[Main] Renderer requested to open external link: ${url}`);
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (error: any) {
+      log.error(`[Main] Failed to open external link ${url}:`, error);
+      return { success: false, error: error.message };
+    }
+  } else {
+    log.warn(`[Main] Blocked attempt to open non-http(s) URL: ${url}`);
+    return {
+      success: false,
+      error: 'Invalid URL. Only http/https links are allowed.',
+    };
+  }
+});
+// --- End IPC Handler for Opening External Links ---
