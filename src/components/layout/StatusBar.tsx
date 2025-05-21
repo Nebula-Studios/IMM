@@ -35,7 +35,7 @@ const StatusBar: React.FC = () => {
   }
 
   return (
-    <footer className="bg-slate-800/60 backdrop-blur-lg text-slate-400 flex items-center justify-between px-6 py-2 h-10 border-t border-slate-700/50 rounded-t-xl mx-4 text-xs">
+    <footer className="bg-neutral-800 text-slate-400 flex items-center justify-between px-6 py-2 h-10 border-t border-l border-r border-neutral-700 rounded-t-xl mx-4 text-xs shadow-xl">
       <div className={`flex items-center ${statusTextColor}`}>
         {statusIcon}
         <span>{updateStatusMessage}</span>

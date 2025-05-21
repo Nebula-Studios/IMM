@@ -102,7 +102,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
   const modalOverlayStyle =
     'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
   const glassCardStyle =
-    'p-8 bg-slate-800/60 backdrop-blur-lg rounded-xl shadow-2xl border border-slate-700/50 flex flex-col items-center text-center max-w-lg w-full mx-4';
+    'p-8 bg-neutral-800/60 backdrop-blur-lg rounded-xl shadow-2xl border border-neutral-700 flex flex-col items-center text-center max-w-lg w-full mx-4';
 
   if (isLoadingInitialCheck) {
     return (
@@ -145,10 +145,10 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
   return (
     <div className={modalOverlayStyle}>
       <div className={glassCardStyle}>
-        <h2 className="text-2xl font-semibold text-slate-100 mb-3">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-3">
           Welcome to InZOI Mod Manager!
         </h2>
-        <p className="text-slate-400 mb-8 max-w-md">
+        <p className="text-neutral-400 mb-8 max-w-md">
           To get started, please select your main InZOI game installation
           folder. This step is only required once.
         </p>
@@ -156,7 +156,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
           onClick={handleSelectFolder}
           disabled={isProcessing}
           size="lg"
-          className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/50 transform transition-transform duration-150 hover:scale-105"
+          className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/50 transform transition-all duration-150"
         >
           {isProcessing ? (
             <>

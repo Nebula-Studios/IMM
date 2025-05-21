@@ -1,0 +1,84 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Linee Guida Stile UI: Tema Scuro Moderno Ispirato a BRS (con Sfondo Nebula)
+
+Questa regola definisce i principi di design per un'interfaccia utente (UI) moderna, minimale e coerente, ispirata allo stile dell'applicazione BRS, ma con l'aggiunta di un'immagine di sfondo d'ambiente. L'enfasi è su un tema scuro con pannelli solidi e distinti. L'implementazione si basa principalmente su **Tailwind CSS** e componenti da **shadcn/ui**. **Framer Motion** può essere usato per animazioni sottili.
+
+## Principi Chiave e Implementazione
+
+1.  **Background Principale con Immagine e Overlay:**
+    *   L'applicazione utilizzerà un'immagine di sfondo (es. `bg_nebula.png`) con `object-fill` e una leggera sfocatura (es. `blur-sm`).
+    *   Sopra l'immagine, un overlay di colore solido ma semi-trasparente (es. `bg-neutral-800/80`) per garantire la leggibilità del contenuto in primo piano.
+    *   **Tailwind CSS:** L'immagine sarà un elemento `<img>` posizionato assolutamente con `z-index` negativo. Il `div` contenitore principale dell'app avrà la classe di overlay (es. `bg-neutral-800/80`).
+
+2.  **Pannelli Solidi e Distinti:**
+    *   Le sezioni principali del contenuto (es. `ModManagerLayout`) saranno presentate come pannelli/card solidi e opachi.
+    *   **Tailwind CSS:**
+        *   Sfondo: `bg-neutral-850` (o un'altra tonalità di `neutral` leggermente diversa dallo sfondo/overlay dell'app).
+        *   Angoli: `rounded-xl` o `rounded-lg`.
+        *   Separazione: Tramite contrasto di colore con lo sfondo principale, e opzionalmente con ombre sottili (es. `shadow-xl` o `shadow-2xl`) o un bordo discreto (es. `border border-neutral-700`).
+    *   Nessun effetto Frost/Glass (backdrop-blur) per questi pannelli principali, a meno che non siano modali o elementi veramente sovrapposti.
+
+3.  **Stile "Floating" per MenuBar e StatusBar:**
+    *   `MenuBar` e `StatusBar` mantengono uno stile "floating", apparendo leggermente distaccati dai bordi della finestra principale.
+    *   **Tailwind CSS:**
+        *   Sfondo: Solido, es. `bg-neutral-800`.
+        *   Margini: `mx-4`.
+        *   Angoli: `rounded-b-xl` per `MenuBar`, `rounded-t-xl` per `StatusBar`.
+        *   Bordi: Bordi sui lati rilevanti per demarcarli (es. `border-b border-l border-r border-neutral-700` per `MenuBar`).
+        *   Separazione: Ombra sottile (es. `shadow-xl`).
+        *   Rimuovere `backdrop-blur-lg` se presente.
+
+4.  **Effetti Hover, Focus e Transizioni Animate:**
+    *   Gli stati interattivi devono fornire un feedback visivo chiaro ma non invadente.
+    *   **Tailwind CSS:** Utilizzare le varianti `hover:`, `focus:`, `active:` per modificare colori, ombre, ecc.
+    *   **Framer Motion:** Utilizzare con parsimonia per animazioni fluide e sottili che non appesantiscano l'interfaccia.
+
+5.  **Spaziatura Omogenea (Consistent Spacing):**
+    *   Mantenere una gerarchia visiva chiara e una leggibilità ottimale utilizzando una spaziatura (padding, margin) consistente e proporzionata.
+    *   **Tailwind CSS:** Adottare la scala di spaziatura predefinita (es. `p-4`, `p-6`, `space-x-4`). La gestione del padding principale dell'area contenuto (precedentemente in `App.tsx`) ora ricade sui componenti interni come `ModManagerLayout` se necessario.
+
+6.  **Minimalismo e Modernità:**
+    *   Design pulito, tipografia chiara e leggibile. Evitare elementi decorativi superflui.
+    *   **shadcn/ui:** Sfruttare per componenti base personalizzabili.
+
+7.  **Palette Colori:**
+    *   **Sfondo App Overlay:** Semi-trasparente scuro (es. `bg-neutral-800/80`).
+    *   **Sfondo Pannelli/Barre:** Scuro solido (es. `bg-neutral-800`, `bg-neutral-850`).
+    *   **Testo Primario:** Bianco o grigio molto chiaro (es. `text-slate-50`, `text-slate-100`).
+    *   **Testo Secondario/Placeholder:** Grigio più scuro (es. `text-slate-400`, `text-neutral-500`).
+    *   **Accento Primario (Azioni Positive/Principali):** Verde (es. `bg-green-600` per pulsanti, `text-green-400` per indicatori).
+    *   **Accento Secondario (Azioni Neutre/Informative):** Blu o Ciano (con parsimonia).
+    *   **Accento di Avvertimento/Reset:** Giallo/Ambra (con parsimonia).
+    *   **Bordi:** Tonalità di `neutral` (es. `border-neutral-700`).
+
+## Strumenti e Tecnologie
+
+*   **Tailwind CSS:** Libreria CSS utility-first primaria.
+*   **shadcn/ui:** Libreria di componenti React di base, da personalizzare.
+*   **Framer Motion:** Per animazioni sottili e significative.
+
+## Componenti di Riferimento (Adattati)
+
+*   `[src/App.tsx](mdc:src/App.tsx)`: Gestisce l'immagine di sfondo e l'overlay semi-trasparente.
+*   `[src/components/layout/MenuBar.tsx](mdc:src/components/layout/MenuBar.tsx)` e `[src/components/layout/StatusBar.tsx](mdc:src/components/layout/StatusBar.tsx)`: Implementano lo stile "floating" con sfondi solidi (`bg-neutral-800`), margini laterali e bordi su tre lati.
+*   `[src/components/layout/ModManagerLayout.tsx](mdc:src/components/layout/ModManagerLayout.tsx)`: Pannello principale solido (`bg-neutral-850`), arrotondato e con ombra, gestisce il proprio padding interno. (Nota: il pulsante "+ Add Mod" è stato rimosso da questo layout).
+
+Questa guida è il riferimento per lo stile visivo dell'applicazione.
+
+
+
+
+
+
+
+
+
+
+
+
+
+

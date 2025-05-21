@@ -23,7 +23,7 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - _Priorità: Altissima_
   - _Dipendenze: Fase 1.1_
 
-- [ ] **1.3. Configurazione Supporto Mod (InZOI Mod Enabler):**
+- [x] **1.3. Configurazione Supporto Mod (InZOI Mod Enabler):**
 
   - [x] Ricercare informazioni su "InZOI Mod Enabler di FrancisLouis" per capire quali file sono necessari e come installarli.
   - [x] Implementare la logica per verificare se i file di supporto sono presenti.
@@ -32,18 +32,18 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - _Priorità: Altissima_
   - _Dipendenze: Fase 1.2_
 
-- [ ] **1.4. Interfaccia Utente di Base (UI):**
+- [x] **1.4. Interfaccia Utente di Base (UI):**
 
-  - [ ] Progettare e implementare la UI principale con le due colonne: "Mod Disabilitati" (sinistra) e "Mod Abilitati" (destra).
-  - [ ] Creare componenti UI riutilizzabili per visualizzare i mod (nome, stato).
-  - [ ] Implementare il pulsante "+" per aggiungere mod.
+  - [x] Progettare e implementare la UI principale con le due colonne: "Mod Disabilitati" (sinistra) e "Mod Abilitati" (destra).
+  - [x] Creare componenti UI riutilizzabili per visualizzare i mod (nome, stato).
+  - [x] Implementare drag and drop per aggiungere mod.
 
   - _Priorità: Alta_
   - _Dipendenze: Fase 1.1_
 
 - [ ] **1.5. Aggiunta Mod (File PAK):**
 
-  - [ ] Implementare la logica per selezionare file `.pak` tramite il pulsante "+" o il drag & drop.
+  - [ ] Implementare la logica per selezionare file `.pak` tramite il drag & drop.
   - [ ] Logica per copiare/spostare i file `.pak` in una cartella gestita dall'applicazione (es. una sottocartella `mods_staging` o simile).
   - [ ] Rilevamento e gestione automatica dei file `.ucas` e `.utoc` associati al `.pak`.
   - [ ] Visualizzare i mod aggiunti nella colonna "Mod Disabilitati".

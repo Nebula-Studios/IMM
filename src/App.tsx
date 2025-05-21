@@ -2,17 +2,23 @@ import MenuBar from '@/components/layout/MenuBar.tsx';
 import StatusBar from '@/components/layout/StatusBar.tsx';
 import AppContent from '@/components/layout/AppContent.tsx';
 import { Toaster } from 'sonner';
+import { useGameFolderPath } from '@/hooks/useGameFolderPath.ts';
 
 export default function App() {
+  const { gameFolderPath, handleDevClearFolder } = useGameFolderPath();
+
   return (
-    <div className="flex flex-col w-screen h-screen overflow-hidden text-slate-100 bg-neutral-600/60">
+    <div className="flex flex-col w-screen h-screen overflow-hidden text-slate-100 bg-neutral-900/80">
       <img
-        src="/bg.jpg"
+        src="/bg_nebula.png"
         alt="Background"
-        className="absolute inset-0 w-full h-full object-cover top-0 left-0 blur-md -z-10"
+        className="absolute inset-0 w-full h-full object-fill top-0 left-0 -z-10 blur-sm"
       />
-      <MenuBar />
-      <main className="flex-grow overflow-y-auto p-6">
+      <MenuBar
+        gameFolderPath={gameFolderPath}
+        onDevClearFolder={handleDevClearFolder}
+      />
+      <main className="flex-grow overflow-y-auto">
         <AppContent />
       </main>
       <StatusBar />

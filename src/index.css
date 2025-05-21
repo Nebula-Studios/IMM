@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,7 +7,7 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark; /* Assumiamo un tema scuro come default per glassmorphism */
@@ -16,14 +17,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+  background-color: #000000;
 }
 
 code {
-  background-color: rgba(50, 50, 70, 0.4);
-  padding: 3px 6px;
-  margin: 0 4px;
-  border-radius: 6px;
-  font-size: 0.9em;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 @layer base {
@@ -89,5 +87,8 @@ code {
   body {
     /* @apply bg-background; */ /* Rimosso per mantenere l'immagine di sfondo personalizzata */
     @apply text-foreground;
+  }
+  code {
+    @apply text-foreground/80 bg-neutral-800 p-1 rounded-md hover:bg-neutral-700 transition-colors;
   }
 }

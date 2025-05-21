@@ -4,15 +4,17 @@
 import { useGameFolderPath } from '@/hooks/useGameFolderPath.ts';
 import GameFolderSetup from '@/components/GameFolderSetup.tsx';
 import UpdateElectron from '@/components/update/index.tsx';
-import { Button } from '@/components/ui/button.tsx';
+// import { Button } from '@/components/ui/button.tsx'; // Non più usato direttamente qui
 import { ModEnablerStatusNotifier } from '@/components/ModEnablerStatusNotifier.tsx';
+import ModManagerLayout from './ModManagerLayout.tsx';
+// import MenuBar from './MenuBar.tsx'; // Rimuovi l'importazione di MenuBar
 
 export default function AppContent() {
   const {
-    gameFolderPath,
+    gameFolderPath, // Questa variabile è ancora usata qui per la logica condizionale
     showSetupModal,
     handleSetupComplete,
-    handleDevClearFolder,
+    // handleDevClearFolder, // Non più passato a MenuBar da qui
     isLoading,
   } = useGameFolderPath();
 
@@ -26,22 +28,14 @@ export default function AppContent() {
 
   return (
     <>
+      {/* <MenuBar gameFolderPath={gameFolderPath} onDevClearFolder={handleDevClearFolder} /> Rimuovi l'istanza di MenuBar */}
       <ModEnablerStatusNotifier />
 
       {gameFolderPath && (
-        <div className="text-center p-4">
-          <p className="text-lg">InZOI Mod Manager is ready!</p>
-          <p className="text-sm text-slate-400">
-            InZOI Path: <code>{gameFolderPath}</code>
-          </p>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDevClearFolder}
-            className="mt-4"
-          >
-            DEV: Reset Game Folder
-          </Button>
+        <div className="flex flex-col h-full">
+          <div className="flex-grow">
+            <ModManagerLayout />
+          </div>
         </div>
       )}
 
@@ -56,7 +50,7 @@ export default function AppContent() {
         </div>
       )}
 
-      <UpdateElectron />
+      {/* <UpdateElectron /> */}
 
       {showSetupModal && (
         <GameFolderSetup onSetupComplete={handleSetupComplete} />

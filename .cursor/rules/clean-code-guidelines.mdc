@@ -3,9 +3,6 @@ description:
 globs:
 alwaysApply: true
 ---
-# Informazioni progetto Donna Futura Parrucchieri
-Questo è una piattaforma per un salone di parrucchiera.
-
 # Linee Guida per il Clean Code
 
 Queste regole definiscono gli standard di codifica per mantenere il codice pulito, leggibile e manutenibile nel nostro progetto basato su Next.js 15, React 19, shadcn/ui, Supabase e Clerk.
@@ -40,6 +37,10 @@ export async function updateUserPublicMetadata(metadata: Record<string, any>) {
 - **Componenti React e Classi:** usa `PascalCase` (es: `UserProfileCard`, `AuthService`).
 - **Costanti:** usa `UPPER_SNAKE_CASE` (es: `MAX_USERS`, `API_ENDPOINT`).
 - Evita abbreviazioni non standard o nomi troppo generici (es: `data`, `val`, `func`).
+
+## Localizzazione
+
+- **TUTTI** i testi devono essere sempre in **inglese**
 
 ## Messaggi di Commit
 
