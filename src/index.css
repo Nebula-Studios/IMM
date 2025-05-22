@@ -92,3 +92,48 @@ code {
     @apply text-foreground/80 bg-neutral-800 p-1 rounded-md hover:bg-neutral-700 transition-colors;
   }
 }
+
+/* Sonner Toast Customizations */
+.toaster [data-sonner-toast][data-type='success'] {
+  /* Tailwind's green-400 è #4ade80 */
+  color: #4ade80 !important; /* Aggiunto !important per maggiore specificità */
+  /* Per le icone SVG, se non ereditano il colore, potremmo dover fare: */
+  /* fill: #4ade80 !important; */
+}
+
+.toaster [data-sonner-toast][data-type='error'] {
+  /* Tailwind's red-400 è #f87171 */
+  color: #f87171 !important;
+  /* fill: #f87171 !important; */
+}
+
+.toaster [data-sonner-toast][data-type='warning'] {
+  /* Tailwind's yellow-400 è #facc15 */
+  color: #facc15 !important;
+  /* fill: #facc15 !important; */
+}
+
+.toaster [data-sonner-toast][data-type='info'] {
+  /* Tailwind's blue-400 è #60a5fa */
+  color: #60a5fa !important;
+  /* fill: #60a5fa !important; */
+}
+
+/* Se le icone sono elementi SVG separati e hanno bisogno di un fill specifico: */
+.toaster [data-sonner-toast][data-type='success'] svg {
+  fill: #4ade80 !important;
+}
+.toaster [data-sonner-toast][data-type='error'] svg {
+  fill: #f87171 !important;
+}
+.toaster [data-sonner-toast][data-type='warning'] svg {
+  fill: #facc15 !important;
+}
+.toaster [data-sonner-toast][data-type='info'] svg {
+  fill: #60a5fa !important;
+}
+
+/* Opzionale: se vuoi stilizzare anche la descrizione in modo diverso per tipo */
+/* .toaster [data-sonner-toast][data-type="success"] [data-description] {
+  @apply text-green-300;
+} */

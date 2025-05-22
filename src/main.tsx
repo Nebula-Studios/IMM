@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
-import { Toaster } from '@/components/ui/sonner.tsx';
+// import { Toaster } from '@/components/ui/sonner.tsx'; // Rimosso se non usato altrove in questo file
 import './index.css';
 
 // Global error handler for the renderer process
@@ -31,7 +31,7 @@ window.onerror = (message, source, lineno, colno, error) => {
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />
-    <Toaster />
+    {/* <Toaster /> Rimosso da qui */}
   </React.StrictMode>
 );
 

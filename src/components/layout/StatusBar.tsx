@@ -17,8 +17,7 @@ const StatusBar: React.FC = () => {
         nexusModsLink
       );
     }
-    // Apriremo questo link con shell.openExternal in un passo successivo
-    alert(`Implementare apertura link: ${nexusModsLink}`);
+    window.electronAPI.openExternalLink(nexusModsLink);
   };
 
   let statusIcon;

@@ -1,7 +1,7 @@
 import MenuBar from '@/components/layout/MenuBar.tsx';
 import StatusBar from '@/components/layout/StatusBar.tsx';
 import AppContent from '@/components/layout/AppContent.tsx';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/sonner.tsx';
 import { useGameFolderPath } from '@/hooks/useGameFolderPath.ts';
 
 export default function App() {
@@ -22,7 +22,7 @@ export default function App() {
         <AppContent />
       </main>
       <StatusBar />
-      <Toaster richColors position="bottom-right" />
+      <Toaster position="bottom-right" />
     </div>
   );
 }

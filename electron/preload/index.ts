@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron';
+import { ipcRenderer, contextBridge, webUtils } from 'electron';
 import type { IpcRendererEvent } from 'electron'; // Import type for listener
 
 // --------- Expose specific APIs to the Renderer process ---------
@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Logging function that sends to main process
   sendToMainLog: (level: string, message: string, ...args: unknown[]) => {
     ipcRenderer.send('log-from-renderer', level, message, ...args);
+  },
+
+  // Utility per ottenere il path assoluto del file
+  getFilePath: (file: File): string => {
+    return webUtils.getPathForFile(file);
   },
 
   // Store/config functions
