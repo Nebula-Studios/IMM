@@ -43,10 +43,10 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
 - [ ] **1.5. Aggiunta Mod (File PAK):**
 
-  - [ ] Implementare la logica per selezionare file `.pak` tramite il drag & drop.
-  - [ ] Logica per copiare/spostare i file `.pak` in una cartella gestita dall'applicazione (es. una sottocartella `mods_staging` o simile).
-  - [ ] Rilevamento e gestione automatica dei file `.ucas` e `.utoc` associati al `.pak`.
-  - [ ] Visualizzare i mod aggiunti nella colonna "Mod Disabilitati".
+  - [x] Implementare la logica per selezionare file `.pak` tramite il drag & drop.
+  - [x] Logica per copiare/spostare i file `.pak` in una cartella gestita dall'applicazione (es. una sottocartella `mods_staging` o simile).
+  - [x] Rilevamento e gestione automatica dei file `.ucas` e `.utoc` associati al `.pak`.
+  - [x] Visualizzare i mod aggiunti nella colonna "Mod Disabilitati".
 
   - _Priorità: Alta_
   - _Dipendenze: Fase 1.4_

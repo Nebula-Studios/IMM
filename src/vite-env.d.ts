@@ -1,5 +1,14 @@
 /// <reference types="vite/client" />
 
+// Define StagingPathConfig here if it's not globally available from another .d.ts file
+// If it IS defined elsewhere globally (e.g. in a types/ folder included in tsconfig),
+// then this specific definition might be redundant or could be imported.
+interface StagingPathConfig {
+  customPath: string | null;
+  defaultPath: string;
+  activePath: string;
+}
+
 interface Window {
   // // expose in the `electron/preload/index.ts`
   // ipcRenderer: import('electron').IpcRenderer;
@@ -62,5 +71,30 @@ interface Window {
       ) => void
     ) => () => void; // Returns an unsubscribe function
     ipcRemoveAllListeners: (channel: string) => void;
+
+    // Added for Mod Staging Path settings
+    getModStagingPathConfig: () => Promise<StagingPathConfig>;
+    setModStagingPath: () => Promise<{
+      success: boolean;
+      path?: string;
+      error?: string;
+    }>;
+    clearModStagingPath: () => Promise<{ success: boolean; error?: string }>;
+
+    // Added for processing dropped mods (assuming it's exposed via preload)
+    processDroppedMods: (filePaths: string[]) => Promise<{
+      success: boolean;
+      mods?: Array<{
+        name: string;
+        pakPath: string;
+        ucasPath: string | null;
+        utocPath: string | null;
+        originalPath: string;
+      }>;
+      error?: string;
+    }>;
+
+    // Funzione aggiunta per installare il Mod Enabler
+    installModEnabler: () => Promise<{ success: boolean; error?: string }>;
   };
 }

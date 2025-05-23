@@ -3,8 +3,10 @@ import { Button } from '@/components/ui/button.tsx';
 import { Loader2 } from 'lucide-react';
 
 interface GameFolderSetupProps {
-  onSetupComplete: (path: string) => void;
+  onSetupComplete: () => void;
 }
+
+type SetupStep = 'gameFolder' | 'stagingFolder' | 'completed';
 
 const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
   onSetupComplete,
@@ -13,13 +15,18 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
     useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<SetupStep>('gameFolder');
+  const [selectedGameFolderPath, setSelectedGameFolderPath] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setIsLoadingInitialCheck(true);
     if (window.electronAPI && window.electronAPI.sendToMainLog) {
       window.electronAPI.sendToMainLog(
         'info',
-        'GameFolderSetup modal mounted.'
+        'GameFolderSetup modal mounted, current step:',
+        currentStep
       );
     } else {
       const errorMessage =
@@ -30,47 +37,48 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
     setIsLoadingInitialCheck(false);
   }, []);
 
-  const handleSelectFolder = async () => {
+  const handleSelectGameFolder = async () => {
     setIsProcessing(true);
     setError(null);
     try {
       if (window.electronAPI) {
-        const result = await window.electronAPI.openFolderDialog();
+        const selectedPath = await window.electronAPI.openFolderDialog();
         window.electronAPI.sendToMainLog(
           'info',
-          'Folder dialog opened (from modal), result:',
-          result
+          '[GameFolderSetup] Folder dialog opened (game folder), result:',
+          selectedPath
         );
-        if (result) {
+        if (selectedPath) {
           window.electronAPI.sendToMainLog(
             'info',
-            'Folder selected by user (from modal):',
-            result
+            '[GameFolderSetup] Game folder selected by user:',
+            selectedPath
           );
           const saveResult =
-            await window.electronAPI.saveGameFolderPath(result);
+            await window.electronAPI.saveGameFolderPath(selectedPath);
           if (saveResult.success && saveResult.path) {
             setError(null);
+            setSelectedGameFolderPath(saveResult.path);
             window.electronAPI.sendToMainLog(
               'info',
-              'Game folder path saved successfully (from modal):',
+              '[GameFolderSetup] Game folder path saved successfully:',
               saveResult.path
             );
-            onSetupComplete(saveResult.path);
+            setCurrentStep('stagingFolder');
           } else {
             const saveError =
-              saveResult?.error || 'Failed to save folder path.';
+              saveResult?.error || 'Failed to save game folder path.';
             setError(saveError);
             window.electronAPI.sendToMainLog(
               'error',
-              'Failed to save game folder path (from modal):',
+              '[GameFolderSetup] Failed to save game folder path:',
               saveError
             );
           }
         } else {
           window.electronAPI.sendToMainLog(
             'info',
-            'Folder selection canceled by user (from modal).'
+            '[GameFolderSetup] Game folder selection canceled by user.'
           );
         }
       } else {
@@ -78,22 +86,88 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
       }
     } catch (err: any) {
       const errorMessage =
-        err.message || 'An error occurred during folder selection or saving.';
+        err.message ||
+        'An error occurred during game folder selection or saving.';
       setError(errorMessage);
-      if (window.electronAPI && window.electronAPI.sendToMainLog) {
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSelectStagingFolder = async () => {
+    setIsProcessing(true);
+    setError(null);
+    try {
+      if (window.electronAPI) {
+        const result = await window.electronAPI.setModStagingPath();
         window.electronAPI.sendToMainLog(
-          'error',
-          'Error in handleSelectFolder (modal):',
-          errorMessage,
-          err
+          'info',
+          '[GameFolderSetup] Staging folder dialog result:',
+          result
         );
+        if (result.success && result.path) {
+          setError(null);
+          window.electronAPI.sendToMainLog(
+            'info',
+            '[GameFolderSetup] Custom staging folder path saved:',
+            result.path
+          );
+          setCurrentStep('completed');
+          onSetupComplete();
+        } else if (
+          result.error &&
+          result.error !== 'Directory selection canceled.'
+        ) {
+          setError(result.error || 'Failed to set custom staging folder.');
+        } else {
+          window.electronAPI.sendToMainLog(
+            'info',
+            '[GameFolderSetup] Staging folder selection canceled by user.'
+          );
+        }
       } else {
-        console.error(
-          'Error in handleSelectFolder (modal, electronAPI not available):',
-          errorMessage,
-          err
-        );
+        throw new Error('electronAPI is not available on window object.');
       }
+    } catch (err: any) {
+      const errorMessage =
+        err.message ||
+        'An error occurred during staging folder selection or saving.';
+      setError(errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUseDefaultStagingPath = async () => {
+    setIsProcessing(true);
+    setError(null);
+    try {
+      if (window.electronAPI) {
+        const result = await window.electronAPI.clearModStagingPath();
+        window.electronAPI.sendToMainLog(
+          'info',
+          '[GameFolderSetup] Clear custom staging path result:',
+          result
+        );
+        if (result.success) {
+          setError(null);
+          window.electronAPI.sendToMainLog(
+            'info',
+            '[GameFolderSetup] Custom staging path cleared (using default).'
+          );
+          setCurrentStep('completed');
+          onSetupComplete();
+        } else {
+          setError(result.error || 'Failed to reset to default staging path.');
+        }
+      } else {
+        throw new Error('electronAPI is not available on window object.');
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err.message ||
+        'An error occurred while resetting to default staging path.';
+      setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -115,26 +189,56 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
     );
   }
 
-  if (error) {
+  if (currentStep === 'gameFolder') {
+    if (error) {
+      return (
+        <div className={modalOverlayStyle}>
+          <div className={glassCardStyle}>
+            <h2 className="text-2xl font-semibold text-red-400 mb-4">
+              Game Folder Setup Error
+            </h2>
+            <p className="text-slate-300 mb-6">{error}</p>
+            <Button
+              onClick={handleSelectGameFolder}
+              disabled={isProcessing}
+              variant="destructive"
+              size="lg"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Retrying...
+                </>
+              ) : (
+                'Retry Game Folder Selection'
+              )}
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={modalOverlayStyle}>
         <div className={glassCardStyle}>
-          <h2 className="text-2xl font-semibold text-red-400 mb-4">
-            Initial Setup Error
+          <h2 className="text-2xl font-semibold text-neutral-100 mb-3">
+            Welcome to InZOI Mod Manager!
           </h2>
-          <p className="text-slate-300 mb-6">{error}</p>
+          <p className="text-neutral-400 mb-8 max-w-md">
+            To get started, please select your main InZOI game installation
+            folder. This step is only required once.
+          </p>
           <Button
-            onClick={handleSelectFolder}
+            onClick={handleSelectGameFolder}
             disabled={isProcessing}
-            variant="destructive"
             size="lg"
+            className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/50 transform transition-all duration-150"
           >
             {isProcessing ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please wait...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Selecting Game
+                Folder...
               </>
             ) : (
-              'Retry Folder Selection'
+              'Select InZOI Game Folder'
             )}
           </Button>
         </div>
@@ -142,33 +246,98 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
     );
   }
 
-  return (
-    <div className={modalOverlayStyle}>
-      <div className={glassCardStyle}>
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-3">
-          Welcome to InZOI Mod Manager!
-        </h2>
-        <p className="text-neutral-400 mb-8 max-w-md">
-          To get started, please select your main InZOI game installation
-          folder. This step is only required once.
-        </p>
-        <Button
-          onClick={handleSelectFolder}
-          disabled={isProcessing}
-          size="lg"
-          className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/50 transform transition-all duration-150"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Selecting...
-            </>
-          ) : (
-            'Select InZOI Folder'
-          )}
-        </Button>
+  if (currentStep === 'stagingFolder') {
+    if (error) {
+      return (
+        <div className={modalOverlayStyle}>
+          <div className={glassCardStyle}>
+            <h2 className="text-2xl font-semibold text-red-400 mb-4">
+              Mod Staging Folder Setup Error
+            </h2>
+            <p className="text-slate-300 mb-6">{error}</p>
+            <div className="flex space-x-4">
+              <Button
+                onClick={handleSelectStagingFolder}
+                disabled={isProcessing}
+                variant="destructive"
+                size="lg"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />{' '}
+                    Retrying...
+                  </>
+                ) : (
+                  'Retry Select Custom Folder'
+                )}
+              </Button>
+              <Button
+                onClick={handleUseDefaultStagingPath}
+                disabled={isProcessing}
+                variant="outline"
+                size="lg"
+              >
+                Retry Use Default
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className={modalOverlayStyle}>
+        <div className={glassCardStyle}>
+          <h2 className="text-2xl font-semibold text-neutral-100 mb-3">
+            Mod Staging Directory Setup
+          </h2>
+          <p className="text-neutral-400 mb-6 max-w-md">
+            Next, configure the directory where mod files will be temporarily
+            stored (staged) before being enabled. You can choose a custom
+            location or use the default path within the application's data
+            folder.
+          </p>
+          <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full justify-center">
+            <Button
+              onClick={handleSelectStagingFolder}
+              disabled={isProcessing}
+              size="lg"
+              className="flex-1 bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/50 transform transition-all duration-150"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Selecting...
+                </>
+              ) : (
+                'Select Custom Staging Folder'
+              )}
+            </Button>
+            <Button
+              onClick={handleUseDefaultStagingPath}
+              disabled={isProcessing}
+              variant="outline"
+              size="lg"
+              className="flex-1 border-neutral-500 hover:bg-neutral-700 hover:border-neutral-400"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />{' '}
+                  Processing...
+                </>
+              ) : (
+                'Use Default Path'
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-neutral-500 mt-6 max-w-md">
+            If you select a custom folder and later want to revert to the
+            default, you can do so from the application settings.
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 };
 
 export default GameFolderSetup;

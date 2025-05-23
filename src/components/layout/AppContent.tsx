@@ -1,60 +1,79 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
-// Temporaneamente commentato per debuggare l'export default
-import { useGameFolderPath } from '@/hooks/useGameFolderPath.ts';
+import React from 'react';
 import GameFolderSetup from '@/components/GameFolderSetup.tsx';
-import UpdateElectron from '@/components/update/index.tsx';
-// import { Button } from '@/components/ui/button.tsx'; // Non più usato direttamente qui
 import { ModEnablerStatusNotifier } from '@/components/ModEnablerStatusNotifier.tsx';
 import ModManagerLayout from './ModManagerLayout.tsx';
-// import MenuBar from './MenuBar.tsx'; // Rimuovi l'importazione di MenuBar
+import MenuBar from '@/components/layout/MenuBar.tsx';
+import SettingsPage from '@/components/settings/SettingsPage.tsx';
 
-export default function AppContent() {
-  const {
-    gameFolderPath, // Questa variabile è ancora usata qui per la logica condizionale
+interface AppContentProps {
+  hookGameFolderPath: string | null;
+  hookShowSetupModal: boolean;
+  hookIsLoading: boolean;
+  onHookHandleSetupComplete: () => void;
+  onHookHandleDevClearFolder: () => Promise<void>;
+  onHookReloadPath: () => Promise<void>;
+  showSettingsPage: boolean;
+  onToggleSettingsPage: () => void;
+}
+
+export default function AppContent({
+  hookGameFolderPath,
+  hookShowSetupModal,
+  hookIsLoading,
+  onHookHandleSetupComplete,
+  onHookHandleDevClearFolder,
+  onHookReloadPath,
+  showSettingsPage,
+  onToggleSettingsPage,
+}: AppContentProps) {
+  const gameFolderPath = hookGameFolderPath;
+  const showSetupModal = hookShowSetupModal;
+  const isLoading = hookIsLoading;
+
+  console.log(
+    '[AppContent.tsx] Props: gameFolderPath:',
+    gameFolderPath,
+    ', showSetupModal:',
     showSetupModal,
-    handleSetupComplete,
-    // handleDevClearFolder, // Non più passato a MenuBar da qui
+    ', isLoading:',
     isLoading,
-  } = useGameFolderPath();
+    ', showSettingsPage:',
+    showSettingsPage
+  );
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <p className="text-lg text-slate-300">Loading...</p>
-      </div>
-    );
-  }
+  const menuBarGamePath = isLoading ? null : gameFolderPath;
 
   return (
-    <>
-      {/* <MenuBar gameFolderPath={gameFolderPath} onDevClearFolder={handleDevClearFolder} /> Rimuovi l'istanza di MenuBar */}
-      <ModEnablerStatusNotifier />
-
-      {gameFolderPath && (
-        <div className="flex flex-col h-full">
-          <div className="flex-grow">
-            <ModManagerLayout />
+    <div>
+      <MenuBar
+        gameFolderPath={menuBarGamePath}
+        onDevClearFolder={onHookHandleDevClearFolder}
+        onSettingsClick={onToggleSettingsPage}
+      />
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center h-[calc(100%-theme(space.14)-theme(space.8))]">
+          <div className="text-xl text-slate-300">
+            Loading application data...
           </div>
-        </div>
-      )}
-
-      {!gameFolderPath && !showSetupModal && (
-        <div className="text-center p-4">
-          <p className="text-lg text-orange-400">
-            Game folder configuration has not been completed yet.
-          </p>
           <p className="text-sm text-slate-500">
-            Please wait or restart the application if the issue persists.
+            Checking game folder configuration.
           </p>
         </div>
+      ) : showSettingsPage ? (
+        <SettingsPage onClose={() => onToggleSettingsPage()} />
+      ) : showSetupModal ? (
+        <GameFolderSetup onSetupComplete={onHookHandleSetupComplete} />
+      ) : (
+        <>
+          {gameFolderPath && (
+            <ModEnablerStatusNotifier gameFolderPath={gameFolderPath} />
+          )}
+          <ModManagerLayout />
+        </>
       )}
-
-      {/* <UpdateElectron /> */}
-
-      {showSetupModal && (
-        <GameFolderSetup onSetupComplete={handleSetupComplete} />
-      )}
-    </>
+    </div>
   );
 }

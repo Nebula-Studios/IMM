@@ -55,6 +55,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startDownload: () => ipcRenderer.invoke('start-download'),
   quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
 
+  // --- Mod Staging Path Functions ---
+  getModStagingPathConfig: () =>
+    ipcRenderer.invoke('get-mod-staging-path-config'),
+  setModStagingPath: () => ipcRenderer.invoke('set-mod-staging-path'),
+  clearModStagingPath: () => ipcRenderer.invoke('clear-mod-staging-path'),
+
+  // --- Process Dropped Mods Function ---
+  processDroppedMods: (filePaths: string[]) =>
+    ipcRenderer.invoke('process-dropped-mods', filePaths),
+
+  // --- Install Mod Enabler Function ---
+  installModEnabler: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('install-mod-enabler'),
+
   // Generic IPC for other cases if needed, though specific APIs are preferred
   ipcOn: (
     channel: string,

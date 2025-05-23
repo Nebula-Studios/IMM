@@ -1,56 +1,96 @@
-import React from 'react';
-import { Settings } from 'lucide-react'; // Importa l'icona Settings
-import { Button } from '@/components/ui/button.tsx'; // Importa Button
+import React, { useEffect } from 'react';
+import { Settings, FolderX, HelpCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button.tsx';
+// import { APP_VERSION } from '@/lib/constants.ts';
 
-interface MenuBarProps {
-  gameFolderPath: string | null | undefined;
-  onDevClearFolder: () => void;
+export interface MenuBarProps {
+  gameFolderPath: string | null;
+  onDevClearFolder: () => Promise<void>;
+  onSettingsClick: () => void;
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
   gameFolderPath,
   onDevClearFolder,
+  onSettingsClick,
 }) => {
-  const appName = 'InZOI Mod Manager'; // O prenderlo da package.json o configurazione
+  useEffect(() => {
+    // Questo log è cruciale!
+    console.log(
+      '[MenuBar.SIMPLIFIED] Rendering with gameFolderPath:',
+      gameFolderPath
+    );
+    // Forziamo un alert per vedere se il componente si renderizza con il nuovo path
+    // ATTENZIONE: Questo sarà fastidioso, ma è per un test rapido.
+    // Rimuovilo subito dopo il test.
+    // alert(`[MenuBar.SIMPLIFIED] gameFolderPath: ${String(gameFolderPath)}`);
+  }, [gameFolderPath]);
 
-  const handleSettingsClick = () => {
-    // Logica per aprire le impostazioni
-    if (window.electronAPI && window.electronAPI.sendToMainLog) {
-      window.electronAPI.sendToMainLog('info', 'Settings icon clicked');
-    }
-    alert('Settings clicked! (Implementazione da fare)');
+  const basePath = gameFolderPath ? gameFolderPath.split('\\inzoi')[0] : null;
+  const displayPath = basePath ? `${basePath}\\...` : 'N/A';
+
+  const handleOpenLink = (url: string) => {
+    window.electronAPI.openExternalLink(url);
   };
 
   return (
-    <header className="bg-neutral-800 text-slate-100 flex items-center justify-between px-6 py-3 min-h-16 shadow-xl border-b border-l border-r border-neutral-700 rounded-b-xl mx-4">
-      <div className="flex flex-col items-start">
-        <div className="text-xl font-semibold tracking-wide">{appName}</div>
+    <div className="h-14 px-4 mx-4 mb-1 flex items-center justify-between bg-neutral-800 text-slate-100 border-b border-l border-r border-neutral-700 rounded-b-xl shadow-xl print:hidden">
+      <div className="flex items-center space-x-2">
+        <img src="/icon.svg" alt="App Icon" className="h-6 w-6" />
+        <h1 className="text-lg font-semibold tracking-tight">
+          InZOI Mod Manager{' '}
+          {/* <span className="text-xs text-slate-400">v{APP_VERSION}</span> */}
+        </h1>
+      </div>
+      <div className="flex-grow px-8">
         {gameFolderPath && (
-          <div className="mt-1 flex items-center">
-            <p className="text-xs text-neutral-300">
-              Game Path: <code>{gameFolderPath}</code>
-            </p>
-            <Button
-              variant="link"
-              size="sm"
-              onClick={onDevClearFolder}
-              className="ml-2 text-orange-400 hover:text-orange-300 p-0 h-auto text-xs focus-visible:ring-offset-0 focus-visible:ring-0"
-            >
-              DEV: Reset Path
-            </Button>
+          <div
+            className="text-xs text-center truncate text-slate-400"
+            title={gameFolderPath}
+          >
+            Game Path: {displayPath}
           </div>
         )}
       </div>
-      <Button
-        onClick={handleSettingsClick}
-        title="Settings"
-        variant="ghost"
-        size="icon"
-        className="text-slate-300 hover:text-slate-100 focus:ring-blue-500 focus:ring-opacity-75 p-2 data-[state=open]:bg-neutral-700 data-[state=closed]:bg-transparent"
-      >
-        <Settings size={22} />
-      </Button>
-    </header>
+      <div className="flex items-center space-x-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            handleOpenLink(
+              'https://github.com/NDEVEL0PER/inzoi-mod-manager/issues/new/choose'
+            )
+          }
+          title="Report a Bug / Request a Feature"
+        >
+          <HelpCircle className="h-4 w-4 mr-1" />
+          Report Bug
+        </Button>
+
+        {/* Pulsante per resettare il percorso - SOLO SVILUPPO */}
+        {process.env.NODE_ENV === 'development' && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onDevClearFolder}
+            title="DEV ONLY: Reset Game Folder Path"
+          >
+            <FolderX className="h-4 w-4 mr-1" />
+            DEV: Reset Path
+          </Button>
+        )}
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSettingsClick}
+          title="Open Settings"
+        >
+          <Settings className="h-4 w-4 mr-1" />
+          Settings
+        </Button>
+      </div>
+    </div>
   );
 };
 
