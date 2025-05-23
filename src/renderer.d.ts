@@ -1,3 +1,6 @@
+import type { ModItem } from '@/components/mod-management/ModCard';
+import type { StagedModInfo } from '@/components/mod-management/ModDropzone';
+
 export interface IElectronAPI {
   sendToMainLog: (level: string, message: string, ...args: unknown[]) => void;
   getFilePath: (file: File) => string;
@@ -32,6 +35,46 @@ export interface IElectronAPI {
     listener: (event: any, ...args: any[]) => void
   ) => () => void;
   ipcRemoveAllListeners: (channel: string) => void;
+  enableMod: (
+    modPath: string,
+    modName: string
+  ) => Promise<{ success: boolean; newPath?: string; error?: string }>;
+  disableMod: (
+    modName: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  loadModLists: () => Promise<{
+    success: boolean;
+    disabledMods?: ModItem[];
+    enabledMods?: ModItem[];
+    error?: string;
+  }>;
+  saveModLists: (modLists: {
+    disabledMods: ModItem[];
+    enabledMods: ModItem[];
+  }) => Promise<{ success: boolean; error?: string }>;
+  scanStagingDirectory: () => Promise<{
+    success: boolean;
+    mods?: ModItem[];
+    error?: string;
+  }>;
+
+  // --- DEV ONLY: Get Current Staging Path ---
+  getCurrentStagingPathDev: () => Promise<string>;
+
+  // --- Synchronize Mod States ---
+  syncModStates: () => Promise<{
+    success: boolean;
+    disabledMods?: ModItem[];
+    enabledMods?: ModItem[];
+    error?: string;
+  }>;
+
+  // --- Process Dropped Mods Function ---
+  processDroppedMods: (filePaths: string[]) => Promise<{
+    success: boolean;
+    mods?: StagedModInfo[];
+    error?: string;
+  }>;
 }
 
 declare global {

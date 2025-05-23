@@ -10,7 +10,10 @@ import ModCard, { ModItem } from './ModCard.tsx';
 interface ModListProps {
   title: string;
   mods: ModItem[];
-  // Future: onModClick, onModOrderChange, etc.
+  type: 'enabled' | 'disabled';
+  onToggleEnable: (modId: string, currentType: 'enabled' | 'disabled') => void;
+  onRename: (modId: string, currentName: string) => void;
+  onRemove: (modId: string, modName: string) => void;
 }
 
 /**
@@ -21,7 +24,14 @@ interface ModListProps {
  * @param {ModItem[]} props.mods - An array of mod data objects to be displayed.
  * @returns {JSX.Element} The rendered list of mods.
  */
-const ModList: React.FC<ModListProps> = ({ title, mods }) => {
+const ModList: React.FC<ModListProps> = ({
+  title,
+  mods,
+  type,
+  onToggleEnable,
+  onRename,
+  onRemove,
+}) => {
   return (
     <div className="p-1 flex-1">
       {mods.length === 0 ? (
@@ -31,7 +41,14 @@ const ModList: React.FC<ModListProps> = ({ title, mods }) => {
           {' '}
           {/* Added pr-2 for scrollbar spacing */}
           {mods.map((mod) => (
-            <ModCard key={mod.id} mod={mod} />
+            <ModCard
+              key={mod.id}
+              mod={mod}
+              type={type}
+              onToggleEnable={onToggleEnable}
+              onRename={onRename}
+              onRemove={onRemove}
+            />
           ))}
         </div>
       )}

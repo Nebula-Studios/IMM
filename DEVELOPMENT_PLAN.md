@@ -51,17 +51,17 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - _Priorità: Alta_
   - _Dipendenze: Fase 1.4_
 
-- [ ] **1.6. Abilitazione/Disabilitazione Mod:**
+- [x] **1.6. Abilitazione/Disabilitazione Mod:**
 
-  - [ ] Implementare la logica per spostare un mod tra la colonna "Disabilitati" e "Abilitati" (drag & drop e/o pulsante).
-  - [ ] Quando un mod viene abilitato:
+  - [x] Implementare la logica per spostare un mod tra la colonna "Disabilitati" e "Abilitati" (drag & drop e/o pulsante).
+  - [x] Quando un mod viene abilitato:
 
-    - [ ] Spostare/copiare il file `.pak` (e i suoi `.ucas`/`.utoc`) nella cartella dei mod del gioco (tipicamente una cartella `~mods` o simile, da verificare come funziona InZOI).
+    - [x] Spostare/copiare il file `.pak` (e i suoi `.ucas`/`.utoc`) nella cartella dei mod del gioco (tipicamente una cartella `~mods` o simile, da verificare come funziona InZOI).
     - [ ] Considerare la numerazione automatica (es. `000_nome_mod.pak`) per l'ordine di caricamento.
 
-  - [ ] Quando un mod viene disabilitato:
+  - [x] Quando un mod viene disabilitato:
 
-    - [ ] Rimuovere il file `.pak` (e associati) dalla cartella dei mod del gioco.
+    - [x] Rimuovere il file `.pak` (e associati) dalla cartella dei mod del gioco.
 
   - _Priorità: Alta_
   - _Dipendenze: Fase 1.5_

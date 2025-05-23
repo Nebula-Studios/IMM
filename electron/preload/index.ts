@@ -1,3 +1,4 @@
+import { ModItem } from '@/components/mod-management/ModCard.tsx';
 import { ipcRenderer, contextBridge, webUtils } from 'electron';
 import type { IpcRendererEvent } from 'electron'; // Import type for listener
 
@@ -68,6 +69,49 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // --- Install Mod Enabler Function ---
   installModEnabler: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('install-mod-enabler'),
+
+  // --- Mod Enable/Disable Functions ---
+  enableMod: (
+    modPath: string,
+    modName: string
+  ): Promise<{ success: boolean; newPath?: string; error?: string }> =>
+    ipcRenderer.invoke('enable-mod', modPath, modName),
+  disableMod: (
+    modName: string // Assuming modName is sufficient to find it in the game's mod folder
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('disable-mod', modName),
+
+  // --- Save/Load Mod Lists ---
+  loadModLists: (): Promise<{
+    success: boolean;
+    disabledMods?: any[]; // Sostituire any[] con ModItem[] una volta definito/importato globalmente
+    enabledMods?: any[]; // Sostituire any[] con ModItem[]
+    error?: string;
+  }> => ipcRenderer.invoke('load-mod-lists'),
+  saveModLists: (modLists: {
+    disabledMods: any[]; // Sostituire any[] con ModItem[]
+    enabledMods: any[]; // Sostituire any[] con ModItem[]
+  }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('save-mod-lists', modLists),
+
+  // --- Scan Staging Directory ---
+  scanStagingDirectory: (): Promise<{
+    success: boolean;
+    mods?: ModItem[]; // Sostituire con ModItem[]
+    error?: string;
+  }> => ipcRenderer.invoke('scan-staging-directory'),
+
+  // --- DEV ONLY: Get Current Staging Path ---
+  getCurrentStagingPathDev: (): Promise<string> =>
+    ipcRenderer.invoke('get-current-staging-path-dev'),
+
+  // --- Synchronize Mod States ---
+  syncModStates: (): Promise<{
+    success: boolean;
+    disabledMods?: ModItem[]; // Assumendo che ModItem sia il tipo corretto qui
+    enabledMods?: ModItem[];
+    error?: string;
+  }> => ipcRenderer.invoke('sync-mod-states'),
 
   // Generic IPC for other cases if needed, though specific APIs are preferred
   ipcOn: (
