@@ -88,7 +88,7 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
 - [ ] **2.3. Rilevamento Automatico dei Mod Esistenti:**
 
-  - [ ] All'avvio (dopo la selezione della cartella), scansionare la cartella dei mod del gioco per identificare mod già presenti.
+  - [x] All'avvio (dopo la selezione della cartella), scansionare la cartella dei mod del gioco per identificare mod già presenti.
   - [ ] Cercare di associare questi mod a quelli conosciuti dall'applicazione o aggiungerli come nuovi mod.
 
   - _Priorità: Media_
