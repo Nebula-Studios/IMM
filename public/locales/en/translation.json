@@ -1,0 +1,48 @@
+{
+  "app": {
+    "loading": "Loading..."
+  },
+  "modManager": {
+    "disabledModsTitle": "Disabled Mods",
+    "enabledModsTitle": "Enabled Mods",
+    "sortModsTooltip": "Sort Mods (Coming Soon)",
+    "renameDialog": {
+      "title": "Rename Mod",
+      "description": "Enter a new name for the mod \"{modName}\".",
+      "descriptionDetails": "This will rename the mod's folder in the staging area. If the mod is enabled, it will be disabled and moved to the \"Disabled Mods\" list.",
+      "newNameLabel": "New Name",
+      "newNamePlaceholder": "Enter new mod name"
+    }
+  },
+  "statusBar": {
+    "noUpdates": "No updates available.",
+    "visitNexusMods": "Visit InZOI on Nexus Mods",
+    "inzoiOnNexusMods": "InZOI on Nexus Mods"
+  },
+  "modCard": {
+    "contextMenu": {
+      "enable": "Enable",
+      "disable": "Disable",
+      "remove": "Remove"
+    },
+    "dragHandleTooltip": "Drag to move or reorder"
+  },
+  "modDropzone": {
+    "dropActive": "Drop the .pak, .zip, .rar, or .7z files here ...",
+    "dropInactive": "Drag 'n' drop mod files here, or click to select files (.pak, .zip, .rar, or .7z)"
+  },
+  "modList": {
+    "dragToEnable": "Drag mods here to enable",
+    "dragToDisable": "Drag mods here to disable"
+  },
+  "toast": {
+    "refreshingModList": "Refreshing mod list...",
+    "modListRefreshedSuccess": "Mod list refreshed successfully!",
+    "modListRefreshedError": "Failed to refresh mod list: {error}",
+    "modListRefreshCriticalError": "Critical error during mod list refresh: {errorMessage}"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "rename": "Rename"
+  }
+}

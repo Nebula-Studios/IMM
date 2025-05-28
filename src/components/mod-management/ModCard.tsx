@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -55,6 +56,7 @@ const ModCard: React.FC<ModCardProps> = ({
   // onSelect,
   // isSelected,
 }) => {
+  const { t } = useTranslation();
   const {
     attributes,
     listeners,
@@ -72,7 +74,7 @@ const ModCard: React.FC<ModCardProps> = ({
     zIndex: isDragging ? 100 : 'auto', // Assicura che l'elemento trascinato sia sopra gli altri
   };
 
-  const toggleLabel = type === 'disabled' ? 'Enable' : 'Disable';
+  const toggleLabel = type === 'disabled' ? t('modCard.contextMenu.enable') : t('modCard.contextMenu.disable');
   const ToggleIcon = type === 'disabled' ? PlayCircle : PauseCircle;
   const iconColor = type === 'disabled' ? 'text-green-500' : 'text-yellow-500';
 
@@ -90,7 +92,7 @@ const ModCard: React.FC<ModCardProps> = ({
         >
           <div className="flex items-center flex-grow truncate">
             {/* L'handle di trascinamento (GripVertical) ora è sempre visibile se si vuole, o condizionato diversamente */}
-            <span {...attributes} {...listeners} className="p-1 mr-2 cursor-grab" title="Drag to move or reorder">
+            <span {...attributes} {...listeners} className="p-1 mr-2 cursor-grab" title={t('modCard.dragHandleTooltip')}>
               <GripVertical className="h-5 w-5 text-neutral-400" />
             </span>
             <p className="text-sm text-slate-100 truncate" title={mod.name}>
@@ -114,7 +116,7 @@ const ModCard: React.FC<ModCardProps> = ({
           className="focus:bg-blue-700/20"
         >
           <FileEdit className="mr-2 h-4 w-4 text-blue-500" />
-          <span className="text-blue-500">Rename</span>
+          <span className="text-blue-500">{t('common.rename')}</span>
           {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -123,7 +125,7 @@ const ModCard: React.FC<ModCardProps> = ({
           className="focus:bg-red-700/20"
         >
           <Trash2 className="mr-2 h-4 w-4 text-red-500" />
-          <span className="text-red-500">Remove</span>
+          <span className="text-red-500">{t('modCard.contextMenu.remove')}</span>
           {/* <ContextMenuShortcut>⌘⌫</ContextMenuShortcut> */}
         </ContextMenuItem>
       </ContextMenuContent>

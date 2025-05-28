@@ -1,6 +1,13 @@
 import type { ModItem } from '@/components/mod-management/ModCard';
 import type { StagedModInfo } from '@/components/mod-management/ModDropzone';
 
+// Definizione temporanea se non esiste globalmente
+interface StagingPathConfig {
+  customPath: string | null;
+  defaultPath: string;
+  activePath: string;
+}
+
 export interface IElectronAPI {
   sendToMainLog: (level: string, message: string, ...args: unknown[]) => void;
   getFilePath: (file: File) => string;
@@ -59,6 +66,15 @@ export interface IElectronAPI {
     error?: string;
   }>;
 
+  // --- Mod Staging Path Functions ---
+  getModStagingPathConfig: () => Promise<StagingPathConfig>;
+  setModStagingPath: () => Promise<{
+    success: boolean;
+    path?: string;
+    error?: string;
+  }>;
+  clearModStagingPath: () => Promise<{ success: boolean; error?: string }>;
+
   // --- DEV ONLY: Get Current Staging Path ---
   getCurrentStagingPathDev: () => Promise<string>;
 
@@ -97,6 +113,15 @@ export interface IElectronAPI {
     success: boolean;
     disabledMods?: ModItem[];
     enabledMods?: ModItem[];
+    error?: string;
+  }>;
+  // Theme functions
+  getTheme: () => Promise<'light' | 'dark' | 'system'>;
+  setTheme: (
+    themeValue: 'light' | 'dark' | 'system'
+  ) => Promise<{
+    success: boolean;
+    theme?: 'light' | 'dark' | 'system';
     error?: string;
   }>;
 }

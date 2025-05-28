@@ -27,6 +27,7 @@ interface StoreSchema {
   modStagingPath?: string;
   savedDisabledMods?: ModItemForStore[]; // activePath non è rilevante per i mod disabilitati
   savedEnabledMods?: ModItemForStore[]; // activePath è rilevante qui
+  theme?: 'light' | 'dark' | 'system';
 }
 
 // Initialize electron-store with the schema
@@ -65,6 +66,11 @@ const store = new Store<StoreSchema>({
         required: ['id', 'name', 'path'], // activePath non è required, può essere aggiunto dinamicamente
       },
       default: [], // Default a un array vuoto
+    },
+    theme: {
+      type: 'string',
+      enum: ['light', 'dark', 'system'],
+      default: 'system',
     },
   },
 });
@@ -2586,3 +2592,24 @@ ipcMain.handle(
   }
 );
 // --- END IPC Handler for Renaming Mod Staging Directory ---
+
+// --- IPC Handlers for Theme ---
+ipcMain.handle('get-theme', async () => {
+  const theme = store.get('theme', 'system'); // Default a 'system' se non impostato
+  log.info(`[Main] Renderer requested theme, returning: ${theme}`);
+  return theme;
+});
+
+ipcMain.handle('set-theme', async (event, themeValue: 'light' | 'dark' | 'system') => {
+  if (['light', 'dark', 'system'].includes(themeValue)) {
+    store.set('theme', themeValue);
+    log.info(`[Main] Theme set to: ${themeValue}`);
+    // Opzionale: notifica la finestra del renderer del cambio di tema se necessario immediatamente
+    // win?.webContents.send('theme-changed', themeValue);
+    return { success: true, theme: themeValue };
+  } else {
+    log.error(`[Main] Invalid theme value received: ${themeValue}`);
+    return { success: false, error: 'Invalid theme value provided.' };
+  }
+});
+// --- END IPC Handlers for Theme ---

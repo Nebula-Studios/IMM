@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
 import { useDropzone, DropEvent, FileRejection } from 'react-dropzone';
 import { toast } from 'sonner';
 
@@ -38,6 +39,7 @@ interface ModDropzoneProps {
 const ModDropzone: React.FC<ModDropzoneProps> = ({
   onModsProcessedAndStaged,
 }) => {
+  const { t } = useTranslation();
   const dropzoneRef = useRef<HTMLDivElement>(null);
 
   // Non usiamo più handleRZDDrop per la logica principale, ma la manteniamo per la configurazione di RZD
@@ -206,10 +208,10 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
     >
       <input {...getInputProps()} />
       {isDragActive ? (
-        <p className="text-green-500">Drop the .pak, .zip, .rar, or .7z files here ...</p>
+        <p className="text-green-500">{t('modDropzone.dropActive')}</p>
       ) : (
         <p className="text-neutral-400">
-          Drag 'n' drop mod files here, or click to select files (.pak, .zip, .rar, or .7z)
+          {t('modDropzone.dropInactive')}
         </p>
       )}
     </div>

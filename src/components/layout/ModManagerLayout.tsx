@@ -22,6 +22,7 @@ import ModList from '../mod-management/ModList.tsx';
 import ModCard, { ModItem } from '../mod-management/ModCard.tsx'; // Importa ModCard per DragOverlay
 import ModDropzone, { StagedModInfo } from '../mod-management/ModDropzone.tsx';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,7 @@ interface ModManagerLayoutProps {
 const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   exposeRefreshFunction,
 }) => {
+  const { t } = useTranslation();
   const [leftPanelWidth, setLeftPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -711,7 +713,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   const loadAndSyncData = useCallback(async () => {
     initialLoadDone.current = false; // Resetta prima di iniziare il caricamento
     // Mostra un toast per indicare che l'aggiornamento è iniziato
-    const toastId = toast.loading('Refreshing mod list...');
+    const toastId = toast.loading(t('toast.refreshingModList'));
     try {
       console.log(
         '[ModManagerLayout] Attempting to synchronize mod states from backend...'
@@ -726,7 +728,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         setDisabledMods(finalDisabledMods);
         setEnabledMods(finalEnabledMods);
 
-        toast.success('Mod list refreshed successfully!', {
+        toast.success(t('toast.modListRefreshedSuccess'), {
           id: toastId,
           duration: 2500,
         });
@@ -734,7 +736,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           `[ModManagerLayout] Synchronization successful. Final lists - Disabled: ${finalDisabledMods.length}, Enabled: ${finalEnabledMods.length}`
         );
       } else {
-        toast.error(`Failed to refresh mod list: ${syncResult.error}`, {
+        toast.error(t('toast.modListRefreshedError', { error: syncResult.error }), {
           id: toastId,
         });
         console.error(
@@ -745,7 +747,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         setEnabledMods([]);
       }
     } catch (error: any) {
-      toast.error(`Critical error during mod list refresh: ${error.message}`, {
+      toast.error(t('toast.modListRefreshCriticalError', { errorMessage: error.message }), {
         id: toastId,
       });
       console.error(
@@ -756,7 +758,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       setEnabledMods([]);
     }
     initialLoadDone.current = true;
-  }, []); // useCallback con dipendenze vuote, la funzione è stabile
+  }, [t]); // useCallback con dipendenze vuote, la funzione è stabile
 
   // Caricamento iniziale delle liste di mod
   useEffect(() => {
@@ -835,13 +837,13 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
               onDrop={handleDropOnDisabledColumnForFileDrop} // Gestito da ModDropzone quando overlay è attivo
             >
               <h2 className="text-lg md:text-xl font-semibold mb-3 text-slate-200 border-b border-neutral-700 pb-2 select-none">
-                Disabled Mods
+                {t('modManager.disabledModsTitle')}
               </h2>
               <div className="overflow-y-auto flex-grow pr-1 min-h-0">
                 {' '}
                 {/* Aggiunto min-h-0 per flexbox */}
                 <ModList
-                  title="Disabled Mods"
+                  title={t('modManager.disabledModsTitle')}
                   mods={disabledMods}
                   type="disabled"
                   droppableId="disabled-mods-column" // ID per dnd-kit
@@ -889,32 +891,14 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
             >
               <div className="flex justify-between items-center mb-3 border-b border-neutral-700 pb-2">
                 <h2 className="text-lg md:text-xl font-semibold text-slate-200 select-none">
-                  Enabled Mods
+                  {t('modManager.enabledModsTitle')}
                 </h2>
-                <TooltipProvider>
-                  <Tooltip delayDuration={150}>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() =>
-                          toast.info('Sort functionality coming soon!')
-                        }
-                        className="p-1.5 text-neutral-400 hover:text-neutral-100 transition-colors"
-                        // Rimosso title attribute, ora gestito dal Tooltip
-                      >
-                        <ArrowUpDown className="h-5 w-5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Sort Mods (Coming Soon)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </div>
               <div className="overflow-y-auto flex-grow pr-1 min-h-0">
                 {' '}
                 {/* Aggiunto min-h-0 */}
                 <ModList
-                  title="Enabled Mods"
+                  title={t('modManager.enabledModsTitle')}
                   mods={enabledMods}
                   type="enabled"
                   droppableId="enabled-mods-column" // ID per dnd-kit
@@ -961,13 +945,11 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           >
             <DialogContent className="sm:max-w-[425px] bg-neutral-800 border-neutral-700 text-slate-100">
               <DialogHeader>
-                <DialogTitle className="text-slate-50">Rename Mod</DialogTitle>
+                <DialogTitle className="text-slate-50">{t('modManager.renameDialog.title')}</DialogTitle>
                 <DialogDescription className="text-neutral-400">
-                  Enter a new name for the mod "{modToRename.name}".
+                  {t('modManager.renameDialog.description', { modName: modToRename.name })}
                   <br />
-                  This will rename the mod's folder in the staging area. If the
-                  mod is enabled, it will be disabled and moved to the "Disabled
-                  Mods" list.
+                  {t('modManager.renameDialog.descriptionDetails')}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -976,14 +958,14 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
                     htmlFor="mod-new-name"
                     className="text-right text-neutral-300"
                   >
-                    New Name
+                    {t('modManager.renameDialog.newNameLabel')}
                   </Label>
                   <Input
                     id="mod-new-name"
                     value={newModName}
                     onChange={(e) => setNewModName(e.target.value)}
                     className="col-span-3 bg-neutral-700 border-neutral-600 text-slate-100 focus:ring-sky-500"
-                    placeholder="Enter new mod name"
+                    placeholder={t('modManager.renameDialog.newNamePlaceholder')}
                   />
                 </div>
               </div>
@@ -994,7 +976,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
                     variant="outline"
                     className="text-slate-100 border-neutral-600 hover:bg-neutral-700"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                 </DialogClose>
                 <Button
@@ -1002,7 +984,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
                   onClick={submitRenameMod}
                   className="bg-sky-600 hover:bg-sky-700 text-white"
                 >
-                  Rename
+                  {t('common.rename')}
                 </Button>
               </DialogFooter>
             </DialogContent>

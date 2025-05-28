@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './i18n'; // Importa la configurazione di i18next
 import App from './App.tsx';
 // import { Toaster } from '@/components/ui/sonner.tsx'; // Rimosso se non usato altrove in questo file
 import './index.css';

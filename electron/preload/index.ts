@@ -165,6 +165,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ipcRemoveAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel);
   },
+
+  // Theme functions
+  getTheme: (): Promise<'light' | 'dark' | 'system'> =>
+    ipcRenderer.invoke('get-theme'),
+  setTheme: (
+    themeValue: 'light' | 'dark' | 'system'
+  ): Promise<{ success: boolean; theme?: 'light' | 'dark' | 'system'; error?: string }> =>
+    ipcRenderer.invoke('set-theme', themeValue),
 });
 
 // --------- Preload scripts loading ---------

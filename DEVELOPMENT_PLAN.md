@@ -93,11 +93,11 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - _Priorità: Media_
   - _Dipendenze: Fase 1.2, Fase 1.6_
 
-- [ ] **2.4. Funzionalità Aggiuntive (Come da "Consigli e Trucchi"):**
+- [x] **2.4. Funzionalità Aggiuntive (Come da "Consigli e Trucchi"):**
 
-  - [ ] **Rinominare Mod:** Implementare il click destro per rinominare un mod.
-  - [ ] **Pulsante Aggiorna:** Implementare un pulsante per forzare una nuova scansione della cartella dei mod.
-  - [ ] **Opzioni Tema:** Implementare un selettore per tema chiaro/scuro.
+  - [x] **Rinominare Mod:** Implementare il click destro per rinominare un mod.
+  - [x] **Pulsante Aggiorna:** Implementare un pulsante per forzare una nuova scansione della cartella dei mod.
+  - [x] **Opzioni Tema:** Implementare un selettore per tema chiaro/scuro.
 
   - _Priorità: Medio-Bassa_
   - _Dipendenze: Fase 1.4, Fase 1.6_
@@ -116,7 +116,7 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 - [ ] **3.1. Localizzazione:**
 
   - [ ] Predisporre l'app per la localizzazione (es. usando `i18next`).
-  - [ ] Aggiungere le traduzioni per Inglese e Russo.
+  - [ ] Aggiungere le traduzioni per Inglese e Italiano.
 
   - _Priorità: Media_
   - _Dipendenze: UI completata_

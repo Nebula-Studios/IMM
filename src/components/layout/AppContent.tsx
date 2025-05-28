@@ -7,6 +7,7 @@ import { ModEnablerStatusNotifier } from '@/components/ModEnablerStatusNotifier.
 import ModManagerLayout from './ModManagerLayout.tsx';
 import MenuBar from '@/components/layout/MenuBar.tsx';
 import SettingsPage from '@/components/settings/SettingsPage.tsx';
+import StatusBar from '@/components/layout/StatusBar.tsx'; // Importa StatusBar
 import { toast } from 'sonner';
 
 interface AppContentProps {
@@ -80,36 +81,40 @@ export default function AppContent({
   const menuBarGamePath = isLoading ? null : gameFolderPath;
 
   return (
-    <div>
+    <div className="flex flex-col h-full"> {/* Contenitore principale flex a colonna, altezza piena */}
       <MenuBar
         gameFolderPath={menuBarGamePath}
         onDevClearFolder={onHookHandleDevClearFolder}
         onSettingsClick={onToggleSettingsPage}
         onRefreshMods={handleRefreshFromMenu}
       />
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center h-[calc(100%-theme(space.14)-theme(space.8))]">
-          <div className="text-xl text-slate-300">
-            Loading application data...
+      {/* Area di contenuto principale, scrollabile se necessario */}
+      <div className="flex-grow overflow-hidden min-h-0"> {/* Modificato da overflow-y-auto a overflow-hidden */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full"> {/* h-full per centraggio verticale */}
+            <div className="text-xl text-slate-300">
+              Loading application data...
+            </div>
+            <p className="text-sm text-slate-500">
+              Checking game folder configuration.
+            </p>
           </div>
-          <p className="text-sm text-slate-500">
-            Checking game folder configuration.
-          </p>
-        </div>
-      ) : showSettingsPage ? (
-        <SettingsPage onClose={() => onToggleSettingsPage()} />
-      ) : showSetupModal ? (
-        <GameFolderSetup onSetupComplete={onHookHandleSetupComplete} />
-      ) : (
-        <>
-          {gameFolderPath && (
-            <ModEnablerStatusNotifier gameFolderPath={gameFolderPath} />
-          )}
-          <ModManagerLayout
-            exposeRefreshFunction={exposeRefreshFunctionFromLayout}
-          />
-        </>
-      )}
+        ) : showSettingsPage ? (
+          <SettingsPage onClose={() => onToggleSettingsPage()} />
+        ) : showSetupModal ? (
+          <GameFolderSetup onSetupComplete={onHookHandleSetupComplete} />
+        ) : (
+          <>
+            {gameFolderPath && (
+              <ModEnablerStatusNotifier gameFolderPath={gameFolderPath} />
+            )}
+            <ModManagerLayout
+              exposeRefreshFunction={exposeRefreshFunctionFromLayout}
+            />
+          </>
+        )}
+      </div>
+      <StatusBar /> {/* StatusBar aggiunta in fondo */}
     </div>
   );
 }

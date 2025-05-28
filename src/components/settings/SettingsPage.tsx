@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button.tsx';
+import { ScrollArea } from '@/components/ui/scroll-area.tsx';
 import {
   Card,
   CardContent,
@@ -14,6 +16,14 @@ import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator.tsx';
+import { ThemeSelector } from './ThemeSelector.tsx';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
 import { FolderCog, X } from 'lucide-react';
 
 /**
@@ -43,6 +53,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
   const [isLoadingGamePath, setIsLoadingGamePath] = useState<boolean>(true);
   const [isLoadingStagingPath, setIsLoadingStagingPath] =
     useState<boolean>(true);
+  const { i18n } = useTranslation();
 
   /**
    * Fetches the current game folder path from the main process.
@@ -173,9 +184,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
     }
   };
 
+  const handleLanguageChange = (newLang: string) => {
+    i18n.changeLanguage(newLang);
+    toast.info('Language Changed', {
+      description: `Application language set to ${newLang === 'en' ? 'English' : 'Italiano'}.`,
+    });
+  };
+
   return (
     <div className="p-4 md:p-6 lg:p-8 mx-auto">
-      <Card className="bg-neutral-850 border-neutral-700 shadow-xl">
+      <Card className="bg-neutral-850 border-neutral-700 shadow-xl flex flex-col h-[85vh] overflow-hidden">
         <CardHeader className="border-b border-neutral-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -197,8 +215,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             Manage your InZOI Mod Manager preferences and paths.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6">
-          <section className="mb-8">
+        <CardContent className="flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className="pt-6 pr-4">
+              <section className="mb-8">
             <h3 className="text-lg font-medium text-slate-200 mb-1">
               Game Path Configuration
             </h3>
@@ -273,8 +293,42 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
               </Button>
             </div>
           </section>
-        </CardContent>
-        <CardFooter className="border-t border-neutral-700 pt-4 flex justify-end">
+
+          <Separator className="my-6 bg-neutral-700" />
+
+          <section className="mb-8">
+            <ThemeSelector />
+          </section>
+        
+          <Separator className="my-6 bg-neutral-700" />
+        
+          <section>
+            <h3 className="text-lg font-medium text-slate-200 mb-1">
+              Language Selection
+            </h3>
+            <p className="text-sm text-slate-400 mb-3">
+              Choose the application language.
+            </p>
+            <div className="grid grid-cols-2 items-center gap-4">
+              <Label className="text-slate-300 text-right">Language</Label>
+              <Select
+                value={i18n.language.split('-')[0]}
+                onValueChange={handleLanguageChange}
+              >
+                <SelectTrigger className="w-full bg-neutral-700 border-neutral-600 text-slate-300">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent className="bg-neutral-700 border-neutral-600 text-slate-300">
+                  <SelectItem value="en" className="hover:bg-neutral-600 focus:bg-neutral-600">English</SelectItem>
+                  <SelectItem value="it" className="hover:bg-neutral-600 focus:bg-neutral-600">Italiano</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
+        </div> {/* Chiude il div wrapper */}
+      </ScrollArea> {/* Chiude ScrollArea */}
+    </CardContent>
+    <CardFooter className="border-t border-neutral-700 pt-4 flex justify-end">
           <Button
             onClick={onClose}
             className="bg-green-600 hover:bg-green-500 text-white"

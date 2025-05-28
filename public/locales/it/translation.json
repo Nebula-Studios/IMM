@@ -1,0 +1,48 @@
+{
+  "app": {
+    "loading": "Caricamento..."
+  },
+  "modManager": {
+    "disabledModsTitle": "Mod Disabilitati",
+    "enabledModsTitle": "Mod Abilitati",
+    "sortModsTooltip": "Ordina Mod (Prossimamente)",
+    "renameDialog": {
+      "title": "Rinomina Mod",
+      "description": "Inserisci un nuovo nome per il mod \"{modName}\".",
+      "descriptionDetails": "Questo rinominerà la cartella del mod nell'area di staging. Se il mod è abilitato, verrà disabilitato e spostato nella lista \"Mod Disabilitati\".",
+      "newNameLabel": "Nuovo Nome",
+      "newNamePlaceholder": "Inserisci il nuovo nome del mod"
+    }
+  },
+  "statusBar": {
+    "noUpdates": "Nessun aggiornamento disponibile.",
+    "visitNexusMods": "Visita InZOI su Nexus Mods",
+    "inzoiOnNexusMods": "InZOI su Nexus Mods"
+  },
+  "modCard": {
+    "contextMenu": {
+      "enable": "Abilita",
+      "disable": "Disabilita",
+      "remove": "Rimuovi"
+    },
+    "dragHandleTooltip": "Trascina per spostare o riordinare"
+  },
+  "modDropzone": {
+    "dropActive": "Rilascia i file .pak, .zip, .rar o .7z qui...",
+    "dropInactive": "Trascina e rilascia i file mod qui, o clicca per selezionare i file (.pak, .zip, .rar o .7z)"
+  },
+  "modList": {
+    "dragToEnable": "Trascina i mod qui per abilitarli",
+    "dragToDisable": "Trascina i mod qui per disabilitarli"
+  },
+  "toast": {
+    "refreshingModList": "Aggiornamento lista mod...",
+    "modListRefreshedSuccess": "Lista mod aggiornata con successo!",
+    "modListRefreshedError": "Impossibile aggiornare la lista mod: {error}",
+    "modListRefreshCriticalError": "Errore critico durante l'aggiornamento della lista mod: {errorMessage}"
+  },
+  "common": {
+    "cancel": "Annulla",
+    "rename": "Rinomina"
+  }
+}

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react'; // Aggiunto Suspense
+import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
 // import MenuBar from '@/components/layout/MenuBar.tsx'; // Rimosso da qui
-import StatusBar from '@/components/layout/StatusBar.tsx';
+// StatusBar sarà importata e usata in AppContent
 import AppContent from '@/components/layout/AppContent.tsx';
 // SettingsPage non verrà più renderizzata direttamente qui
 import { Toaster } from '@/components/ui/sonner.tsx';
 import { useGameFolderPath } from '@/hooks/useGameFolderPath.ts';
+import { useTheme } from '@/hooks/useTheme.ts'; // Aggiunto import per useTheme
 
 export default function App() {
   const {
@@ -15,6 +17,9 @@ export default function App() {
     handleDevClearFolder,
     reloadPath, // Potrebbe servire passarlo giù
   } = useGameFolderPath();
+
+  useTheme(); // Chiamata a useTheme per inizializzare e applicare il tema
+  const { t } = useTranslation(); // Hook per le traduzioni
 
   const [showSettingsPage, setShowSettingsPage] = useState(false);
 
@@ -28,29 +33,30 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col w-screen h-screen overflow-hidden text-slate-100 bg-neutral-900/80">
-      <img
-        src="/bg_nebula.png"
+    <Suspense fallback={<div>Loading...</div>}> {/* Fallback statico */}
+      <div className="flex flex-col w-screen h-screen overflow-hidden text-slate-100 bg-neutral-900/80">
+        {/* <h1>{t('greeting')}</h1> Esempio di stringa tradotta rimosso */}
+        <img
+          src="/bg_nebula.png"
         alt="Background"
         className="absolute inset-0 w-full h-full object-fill top-0 left-0 -z-10 blur-sm"
       />
-      {/* MenuBar rimosso da qui */}
-      <main className="flex-grow overflow-y-auto">
-        {/* AppContent è sempre renderizzato. Gestirà la visualizzazione di SettingsPage internamente. */}
-        <AppContent
-          hookGameFolderPath={gameFolderPath}
-          hookShowSetupModal={showSetupModal}
-          hookIsLoading={isLoading}
-          onHookHandleSetupComplete={handleSetupComplete}
-          onHookHandleDevClearFolder={handleDevClearFolder}
-          onHookReloadPath={reloadPath}
-          showSettingsPage={showSettingsPage} // Passiamo lo stato di visibilità della pagina impostazioni
-          onToggleSettingsPage={handleToggleSettingsPage} // Passiamo la callback per cambiare questo stato
-          // La nuova funzione onRefreshMods verrà gestita all'interno di AppContent o ModManagerLayout
-        />
-      </main>
-      <StatusBar />
+      {/* MenuBar e StatusBar saranno gestite da AppContent */}
+      {/* AppContent ora occupa tutto lo spazio flex disponibile */}
+      <AppContent
+        hookGameFolderPath={gameFolderPath}
+        hookShowSetupModal={showSetupModal}
+        hookIsLoading={isLoading}
+        onHookHandleSetupComplete={handleSetupComplete}
+        onHookHandleDevClearFolder={handleDevClearFolder}
+        onHookReloadPath={reloadPath}
+        showSettingsPage={showSettingsPage} // Passiamo lo stato di visibilità della pagina impostazioni
+        onToggleSettingsPage={handleToggleSettingsPage} // Passiamo la callback per cambiare questo stato
+        // La nuova funzione onRefreshMods verrà gestita all'interno di AppContent o ModManagerLayout
+      />
+      {/* StatusBar rimossa da qui, Toaster rimane */}
       <Toaster position="bottom-right" />
-    </div>
+      </div>
+    </Suspense>
   );
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
 import { useDroppable, UniqueIdentifier } from '@dnd-kit/core';
 import {
   // arrayMove, // Non più necessario qui, gestito in ModManagerLayout
@@ -42,6 +43,7 @@ const ModList: React.FC<ModListProps> = ({
   onRemove,
   onOrderChange,
 }) => {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({
     id: droppableId,
   });
@@ -74,7 +76,7 @@ const ModList: React.FC<ModListProps> = ({
       {mods.length === 0 && (
          <div className="flex items-center justify-center h-full min-h-[60px]">
             <p className="text-sm text-neutral-500 italic">
-              Drag mods here to {type === 'enabled' ? 'enable' : 'disable'}
+              {type === 'enabled' ? t('modList.dragToEnable') : t('modList.dragToDisable')}
             </p>
          </div>
       )}
