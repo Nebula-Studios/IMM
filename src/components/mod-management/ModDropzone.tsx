@@ -80,12 +80,13 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
       if (dragEvent.dataTransfer && dragEvent.dataTransfer.files) {
         const nativeFileList = dragEvent.dataTransfer.files;
         if (nativeFileList.length > 0) {
-          let pakFileFound = false;
+          let validFileFound = false; // Accetta .pak, .zip, e .rar
           for (let i = 0; i < nativeFileList.length; i++) {
             const nativeFile = nativeFileList.item(i);
             if (nativeFile && nativeFile instanceof File) {
-              if (nativeFile.name.toLowerCase().endsWith('.pak')) {
-                pakFileFound = true;
+              const fileNameLower = nativeFile.name.toLowerCase();
+              if (fileNameLower.endsWith('.pak') || fileNameLower.endsWith('.zip') || fileNameLower.endsWith('.rar') || fileNameLower.endsWith('.7z')) {
+                validFileFound = true;
                 // @ts-ignore TODO: electronAPI types
                 const filePath = window.electronAPI.getFilePath(nativeFile); // Otteniamo il path originale
                 if (
@@ -104,20 +105,20 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
                 }
               } else {
                 toast.info(
-                  `File "${nativeFile.name}" is not a .pak file and will be ignored.`
+                  `File "${nativeFile.name}" is not a .pak, .zip, .rar, or .7z file and will be ignored.`
                 );
               }
             }
           }
 
-          if (!pakFileFound && nativeFileList.length > 0) {
-            toast.info('No .pak files found in the dropped items.');
-            return; // Nessun .pak da processare
+          if (!validFileFound && nativeFileList.length > 0) {
+            toast.info('No .pak, .zip, .rar, or .7z files found in the dropped items.');
+            return; // Nessun file valido da processare
           }
 
           if (filesToProcess.length > 0) {
             console.log(
-              '[ModDropzone] Files to process by backend:',
+              '[ModDropzone] Files to process by backend (.pak, .zip, .rar, or .7z):',
               filesToProcess
             );
             try {
@@ -130,7 +131,7 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
                   result.mods
                 );
                 toast.success(
-                  `${result.mods.length} mod(s) processed and staged successfully!`
+                  `${result.mods.length} mod(s) (from .pak/.zip/.rar/.7z) processed and staged successfully!`
                 );
                 onModsProcessedAndStaged(result.mods);
               } else {
@@ -155,10 +156,10 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
               });
               onModsProcessedAndStaged([]);
             }
-          } else if (pakFileFound) {
-            // c'erano .pak ma non siamo riusciti a ottenere i path
+          } else if (validFileFound) {
+            // c'erano .pak, .zip, .rar o .7z ma non siamo riusciti a ottenere i path
             toast.warning(
-              'Found .pak files, but could not determine their paths to process.'
+              'Found .pak, .zip, .rar, or .7z files, but could not determine their paths to process.'
             );
           }
         } else {
@@ -205,10 +206,10 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
     >
       <input {...getInputProps()} />
       {isDragActive ? (
-        <p className="text-green-500">Drop the .pak files here ...</p>
+        <p className="text-green-500">Drop the .pak, .zip, .rar, or .7z files here ...</p>
       ) : (
         <p className="text-neutral-400">
-          Drag 'n' drop mod files here, or click to select files (.pak only)
+          Drag 'n' drop mod files here, or click to select files (.pak, .zip, .rar, or .7z)
         </p>
       )}
     </div>

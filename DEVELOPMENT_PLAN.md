@@ -67,7 +67,7 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
 ## Fase 2: Funzionalità Avanzate e Miglioramenti
 
-- [ ] **2.1. Gestione Ordine di Caricamento:**
+- [x] **2.1. Gestione Ordine di Caricamento:**
 
   - [x] Implementare l'interfaccia per l'icona "Ordina" (Sort).
   - [x] Permettere all'utente di riordinare i mod nella colonna "Abilitati".
@@ -76,11 +76,11 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - _Priorità: Medio-Alta_
   - _Dipendenze: Fase 1.6_
 
-- [ ] **2.2. Supporto Archivi ZIP:**
+- [x] **2.2. Supporto Archivi (ZIP, RAR, 7z):**
 
-  - [ ] Implementare la logica per gestire l'aggiunta di file `.zip`.
-  - [ ] Estrarre il contenuto dello ZIP (che dovrebbe contenere file `.pak` e potenzialmente `.ucas`/`.utoc`).
-  - [ ] Processare i file estratti come nella Fase 1.5.
+  - [x] Implementare la logica per gestire l'aggiunta di file `.zip`, `.rar`, `.7z`.
+  - [x] Estrarre il contenuto dell'archivio (che dovrebbe contenere file `.pak` e potenzialmente `.ucas`/`.utoc`).
+  - [x] Processare i file estratti come nella Fase 1.5.
 
   - _Priorità: Media_
   - _Dipendenze: Fase 1.5_

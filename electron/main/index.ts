@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+import AdmZip from 'adm-zip'; // Aggiunto per la gestione degli ZIP
+import { createExtractorFromFile } from 'node-unrar-js'; // Aggiunto per la gestione dei RAR
+// 7zip-min sarà importato usando 'require' più avanti a causa di problemi con l'importazione ESM e i tipi
 import { update } from './update.js';
 import log from 'electron-log';
 import Store from 'electron-store';
@@ -512,93 +515,206 @@ ipcMain.handle(
   'process-dropped-mods',
   async (event, filePaths: string[]): Promise<ProcessDroppedModsResult> => {
     const stagingPath = getCurrentStagingPath();
-    console.log(`[Main Process] Staging path for mods: ${stagingPath}`);
+    log.info(`[Main Process] Staging path for mods: ${stagingPath}`);
+    log.info(`[Main Process] Received ${filePaths.length} files/folders to process: ${filePaths.join(', ')}`);
+
+    const tempExtractionBaseDir = nodePath.join(app.getPath('temp'), 'inzoi-mod-manager-unzips');
+    const extractionFoldersToClean: string[] = [];
 
     try {
       if (!fs.existsSync(stagingPath)) {
         fs.mkdirSync(stagingPath, { recursive: true });
-        console.log(`[Main Process] Created staging directory: ${stagingPath}`);
+        log.info(`[Main Process] Created staging directory: ${stagingPath}`);
+      }
+      if (!fs.existsSync(tempExtractionBaseDir)) {
+        fs.mkdirSync(tempExtractionBaseDir, { recursive: true });
+        log.info(`[Main Process] Created base temporary extraction directory: ${tempExtractionBaseDir}`);
       }
 
       const processedModsInfo: ProcessedModInfo[] = [];
+      const filesToStage: string[] = []; // Lista per i .pak da mettere in staging
 
-      for (const sourceFilePath of filePaths) {
-        if (nodePath.extname(sourceFilePath).toLowerCase() !== '.pak') {
-          console.warn(
-            `[Main Process] Skipped non-PAK file: ${sourceFilePath}`
+      for (const originalSourcePath of filePaths) {
+        const fileExtension = nodePath.extname(originalSourcePath).toLowerCase();
+        log.info(`[Main Process] Processing original source: ${originalSourcePath} (type: ${fileExtension})`);
+
+        const findPaksRecursive = (dir: string): string[] => {
+          let paks: string[] = [];
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = nodePath.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              paks = paks.concat(findPaksRecursive(fullPath));
+            } else if (entry.isFile() && nodePath.extname(entry.name).toLowerCase() === '.pak') {
+              paks.push(fullPath);
+            }
+          }
+          return paks;
+        };
+
+        if (fileExtension === '.zip') {
+          log.info(`[Main Process] Identified ZIP file: ${originalSourcePath}`);
+          const tempExtractDir = nodePath.join(tempExtractionBaseDir, `extract_zip_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
+          extractionFoldersToClean.push(tempExtractDir);
+
+          try {
+            if (!fs.existsSync(tempExtractDir)) {
+              fs.mkdirSync(tempExtractDir, { recursive: true });
+            }
+            const zip = new AdmZip(originalSourcePath);
+            zip.extractAllTo(tempExtractDir, /*overwrite*/ true);
+            log.info(`[Main Process] Extracted ZIP ${originalSourcePath} to ${tempExtractDir}`);
+            const extractedPaks = findPaksRecursive(tempExtractDir);
+            if (extractedPaks.length > 0) {
+              log.info(`[Main Process] Found ${extractedPaks.length} .pak file(s) in extracted ZIP ${originalSourcePath}: ${extractedPaks.join(', ')}`);
+              filesToStage.push(...extractedPaks);
+            } else {
+              log.warn(`[Main Process] No .pak files found in extracted ZIP: ${originalSourcePath}`);
+            }
+          } catch (zipError: any) {
+            log.error(`[Main Process] Error processing ZIP file ${originalSourcePath}: ${zipError.message}`, zipError);
+          }
+        } else if (fileExtension === '.rar') {
+          log.info(`[Main Process] Identified RAR file: ${originalSourcePath}`);
+          const tempExtractDir = nodePath.join(tempExtractionBaseDir, `extract_rar_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
+          extractionFoldersToClean.push(tempExtractDir);
+
+          try {
+            if (!fs.existsSync(tempExtractDir)) {
+              fs.mkdirSync(tempExtractDir, { recursive: true });
+            }
+            const extractor = await createExtractorFromFile({
+              filepath: originalSourcePath,
+              targetPath: tempExtractDir,
+            });
+            [...extractor.extract().files]; // Esegui l'estrazione
+            log.info(`[Main Process] Extracted RAR ${originalSourcePath} to ${tempExtractDir}`);
+            const extractedPaks = findPaksRecursive(tempExtractDir);
+            if (extractedPaks.length > 0) {
+              log.info(`[Main Process] Found ${extractedPaks.length} .pak file(s) in extracted RAR ${originalSourcePath}: ${extractedPaks.join(', ')}`);
+              filesToStage.push(...extractedPaks);
+            } else {
+              log.warn(`[Main Process] No .pak files found in extracted RAR: ${originalSourcePath}`);
+            }
+          } catch (rarError: any) {
+            log.error(`[Main Process] Error processing RAR file ${originalSourcePath}: ${rarError.message}`, rarError);
+          }
+        } else if (fileExtension === '.7z') {
+          log.info(`[Main Process] Identified 7z file: ${originalSourcePath}`);
+          const tempExtractDir = nodePath.join(tempExtractionBaseDir, `extract_7z_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
+          extractionFoldersToClean.push(tempExtractDir);
+
+          try {
+            if (!fs.existsSync(tempExtractDir)) {
+              fs.mkdirSync(tempExtractDir, { recursive: true });
+            }
+            // Importa 7zip-min usando require a causa di problemi con ESM/tipi
+            const SevenZipLib = require('7zip-min');
+            await SevenZipLib.extractFull(originalSourcePath, tempExtractDir);
+            log.info(`[Main Process] Extracted 7z ${originalSourcePath} to ${tempExtractDir}`);
+            const extractedPaks = findPaksRecursive(tempExtractDir);
+            if (extractedPaks.length > 0) {
+              log.info(`[Main Process] Found ${extractedPaks.length} .pak file(s) in extracted 7z ${originalSourcePath}: ${extractedPaks.join(', ')}`);
+              filesToStage.push(...extractedPaks);
+            } else {
+              log.warn(`[Main Process] No .pak files found in extracted 7z: ${originalSourcePath}`);
+            }
+          } catch (sevenZipError: any) {
+            log.error(`[Main Process] Error processing 7z file ${originalSourcePath}: ${sevenZipError.message}`, sevenZipError);
+          }
+        } else if (fileExtension === '.pak') {
+          filesToStage.push(originalSourcePath);
+        } else {
+          log.warn(
+            `[Main Process] Skipped non-PAK, non-ZIP, non-RAR, non-7z file: ${originalSourcePath}`
           );
-          continue;
         }
+      }
 
+      if (filesToStage.length === 0) {
+        log.info('[Main Process] No .pak files (direct or from archives) to stage.');
+        // Non è un errore, semplicemente non ci sono mod validi da processare.
+        // La pulizia avverrà nel blocco finally.
+        return { success: true, mods: [] };
+      }
+
+      log.info(`[Main Process] Total .pak files to stage (from direct drop or archives): ${filesToStage.length} - ${filesToStage.join(', ')}`);
+
+      for (const sourceFilePath of filesToStage) {
         const sourceDir = nodePath.dirname(sourceFilePath);
         const baseName = nodePath.basename(sourceFilePath, '.pak');
-
         const sanitizedModName = sanitizeDirectoryName(baseName);
         const modSpecificStagingDir = nodePath.join(stagingPath, sanitizedModName);
 
         if (!fs.existsSync(modSpecificStagingDir)) {
           fs.mkdirSync(modSpecificStagingDir, { recursive: true });
-          console.log(`[Main Process] Created mod-specific staging directory: ${modSpecificStagingDir}`);
+          log.info(`[Main Process] Created mod-specific staging directory: ${modSpecificStagingDir}`);
         }
 
-        const pakFileName = `${baseName}.pak`; // Or nodePath.basename(sourceFilePath)
+        const pakFileName = `${baseName}.pak`; // Usa il baseName per consistenza
         const ucasFileName = `${baseName}.ucas`;
         const utocFileName = `${baseName}.utoc`;
-
         const destinationPakPath = nodePath.join(modSpecificStagingDir, pakFileName);
 
-        // Copy .pak file. Overwrites if exists.
         fs.copyFileSync(sourceFilePath, destinationPakPath);
-        console.log(
-          `[Main Process] Copied ${pakFileName} from ${sourceFilePath} to ${destinationPakPath}`
-        );
+        log.info(`[Main Process] Copied ${pakFileName} from ${sourceFilePath} to ${destinationPakPath}`);
 
         const modInfo: ProcessedModInfo = {
-          name: baseName,
+          name: baseName, // Nome base del file .pak (senza estensione)
           pakPath: destinationPakPath,
           ucasPath: null,
           utocPath: null,
-          originalPath: sourceFilePath,
+          originalPath: sourceFilePath, // Path originale del .pak, sia esso diretto o estratto da ZIP
         };
 
-        // Check for and copy associated .ucas file
         const sourceUcasPath = nodePath.join(sourceDir, ucasFileName);
         if (fs.existsSync(sourceUcasPath)) {
           const destinationUcasPath = nodePath.join(modSpecificStagingDir, ucasFileName);
           fs.copyFileSync(sourceUcasPath, destinationUcasPath);
           modInfo.ucasPath = destinationUcasPath;
-          console.log(
-            `[Main Process] Copied ${ucasFileName} to ${destinationUcasPath}`
-          );
+          log.info(`[Main Process] Copied ${ucasFileName} from ${sourceUcasPath} to ${destinationUcasPath}`);
         }
 
-        // Check for and copy associated .utoc file
         const sourceUtocPath = nodePath.join(sourceDir, utocFileName);
         if (fs.existsSync(sourceUtocPath)) {
           const destinationUtocPath = nodePath.join(modSpecificStagingDir, utocFileName);
           fs.copyFileSync(sourceUtocPath, destinationUtocPath);
           modInfo.utocPath = destinationUtocPath;
-          console.log(
-            `[Main Process] Copied ${utocFileName} to ${destinationUtocPath}`
-          );
+          log.info(`[Main Process] Copied ${utocFileName} from ${sourceUtocPath} to ${destinationUtocPath}`);
         }
-
         processedModsInfo.push(modInfo);
       }
 
-      console.log(
-        '[Main Process] Successfully processed dropped mods:',
-        processedModsInfo.map((m) => m.name)
+      log.info(
+        `[Main Process] Successfully processed ${processedModsInfo.length} mods (from PAKs/ZIPs/RARs/7zs): ${processedModsInfo.map(m => m.name).join(', ')}`
       );
       return { success: true, mods: processedModsInfo };
     } catch (error: any) {
-      console.error('[Main Process] Error processing dropped mods:', error);
+      log.error('[Main Process] Error processing dropped files (PAK/ZIP/RAR/7z):', error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return {
         success: false,
         error: `Failed to copy mods to staging area: ${errorMessage}`,
       };
+    } finally {
+      // Pulizia delle cartelle di estrazione temporanee
+      log.info(`[Main Process] Starting cleanup of ${extractionFoldersToClean.length} temporary extraction folder(s).`);
+      for (const folderToClean of extractionFoldersToClean) {
+        try {
+          if (fs.existsSync(folderToClean)) {
+            // fs.rmdirSync(folderToClean, { recursive: true }); // Deprecato, usare fs.rmSync
+            fs.rmSync(folderToClean, { recursive: true, force: true });
+            log.info(`[Main Process] Cleaned up temporary extraction folder: ${folderToClean}`);
+          } else {
+            log.warn(`[Main Process] Temporary extraction folder not found for cleanup (already deleted?): ${folderToClean}`);
+          }
+        } catch (cleanupError: any) {
+          log.error(`[Main Process] Error cleaning up temporary extraction folder ${folderToClean}: ${cleanupError.message}`);
+          // Non far fallire l'intera operazione per un errore di pulizia
+        }
+      }
+      log.info(`[Main Process] Finished cleanup of temporary extraction folders.`);
     }
   }
 );
