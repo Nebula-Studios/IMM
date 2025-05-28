@@ -75,6 +75,11 @@ export interface IElectronAPI {
     mods?: StagedModInfo[];
     error?: string;
   }>;
+
+  // --- Update Mod Order ---
+  updateModOrder: (
+    orderedMods: ModItem[]
+  ) => Promise<{ success: boolean; updatedMods: ModItem[]; error?: string }>;
 }
 
 declare global {

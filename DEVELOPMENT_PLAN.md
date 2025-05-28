@@ -56,8 +56,7 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
   - [x] Implementare la logica per spostare un mod tra la colonna "Disabilitati" e "Abilitati" (drag & drop e/o pulsante).
   - [x] Quando un mod viene abilitato:
 
-    - [x] Spostare/copiare il file `.pak` (e i suoi `.ucas`/`.utoc`) nella cartella dei mod del gioco (tipicamente una cartella `~mods` o simile, da verificare come funziona InZOI).
-    - [ ] Considerare la numerazione automatica (es. `000_nome_mod.pak`) per l'ordine di caricamento.
+    - [x] Spostare/copiare il file `.pak` (e i suoi `.ucas`/`.utoc`) in una sottocartella numerata (es. `000_NomeMod/NomeMod.pak`) nella cartella dei mod del gioco (`~mods`). - [x] La numerazione si applica alla sottocartella per l'ordine di caricamento.
 
   - [x] Quando un mod viene disabilitato:
 
@@ -70,9 +69,9 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
 - [ ] **2.1. Gestione Ordine di Caricamento:**
 
-  - [ ] Implementare l'interfaccia per l'icona "Ordina" (Sort).
-  - [ ] Permettere all'utente di riordinare i mod nella colonna "Abilitati".
-  - [ ] Aggiornare la numerazione dei file mod nella cartella di gioco in base al nuovo ordine.
+  - [x] Implementare l'interfaccia per l'icona "Ordina" (Sort).
+  - [x] Permettere all'utente di riordinare i mod nella colonna "Abilitati".
+  - [x] Aggiornare la numerazione dei file mod nella cartella di gioco in base al nuovo ordine.
 
   - _Priorità: Medio-Alta_
   - _Dipendenze: Fase 1.6_

@@ -15,14 +15,15 @@ import fsPromises from 'node:fs/promises';
 interface ModItemForStore {
   id: string;
   name: string;
-  path: string;
+  path: string; // Percorso di staging del file .pak principale
+  activePath?: string; // Percorso della cartella del mod nella directory ~mods del gioco (es. C:\...\~mods\000_NomeMod)
 }
 
 interface StoreSchema {
   gameFolderPath?: string;
   modStagingPath?: string;
-  savedDisabledMods?: ModItemForStore[];
-  savedEnabledMods?: ModItemForStore[];
+  savedDisabledMods?: ModItemForStore[]; // activePath non è rilevante per i mod disabilitati
+  savedEnabledMods?: ModItemForStore[]; // activePath è rilevante qui
 }
 
 // Initialize electron-store with the schema
@@ -42,6 +43,7 @@ const store = new Store<StoreSchema>({
           id: { type: 'string' },
           name: { type: 'string' },
           path: { type: 'string' },
+          // activePath non è memorizzato per i mod disabilitati
         },
         required: ['id', 'name', 'path'],
       },
@@ -55,8 +57,9 @@ const store = new Store<StoreSchema>({
           id: { type: 'string' },
           name: { type: 'string' },
           path: { type: 'string' },
+          activePath: { type: 'string' }, // Può essere undefined se non ancora determinato o se il mod è stato disabilitato
         },
-        required: ['id', 'name', 'path'],
+        required: ['id', 'name', 'path'], // activePath non è required, può essere aggiunto dinamicamente
       },
       default: [], // Default a un array vuoto
     },
@@ -126,7 +129,7 @@ async function createWindow() {
     // #298
     win.loadURL(VITE_DEV_SERVER_URL);
     // Open devTool if the app is not packaged
-    win.webContents.openDevTools();
+    // win.webContents.openDevTools(); // LEAVE COMMENTED FOR NOW
   } else {
     win.loadFile(indexHtml);
   }
@@ -441,6 +444,33 @@ function getCurrentStagingPath(): string {
 /**
  * Information about a processed mod file and its associated files.
  */
+// Function to sanitize a string to be used as a directory name
+function sanitizeDirectoryName(name: string): string {
+  let sanitized = name.trim();
+  // Remove invalid characters for Windows/Unix and control characters
+  sanitized = sanitized.replace(/[<>:"/\\\\|?*\x00-\x1F]/g, '_');
+  // Replace whitespace sequences with a single underscore
+  sanitized = sanitized.replace(/\s+/g, '_'); // Corretto: \s+ invece di \\s+
+  // Remove any character that is not alphanumeric, underscore, hyphen, or period
+  sanitized = sanitized.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+  // Collapse multiple underscores
+  sanitized = sanitized.replace(/__+/g, '_');
+  // Remove leading/trailing underscores
+  sanitized = sanitized.replace(/^_+|_+$/g, '');
+
+  if (sanitized.length === 0) {
+    sanitized = 'untitled_mod';
+  }
+
+  // Avoid Windows reserved names (very basic check)
+  const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+  if (reservedNames.test(sanitized.split('.')[0])) {
+    sanitized = `_${sanitized}`;
+  }
+  // Limit length
+  return sanitized.substring(0, 250);
+}
+
 interface ProcessedModInfo {
   /** The base name of the mod (without extension). */
   name: string;
@@ -503,11 +533,19 @@ ipcMain.handle(
         const sourceDir = nodePath.dirname(sourceFilePath);
         const baseName = nodePath.basename(sourceFilePath, '.pak');
 
-        const pakFileName = `${baseName}.pak`;
+        const sanitizedModName = sanitizeDirectoryName(baseName);
+        const modSpecificStagingDir = nodePath.join(stagingPath, sanitizedModName);
+
+        if (!fs.existsSync(modSpecificStagingDir)) {
+          fs.mkdirSync(modSpecificStagingDir, { recursive: true });
+          console.log(`[Main Process] Created mod-specific staging directory: ${modSpecificStagingDir}`);
+        }
+
+        const pakFileName = `${baseName}.pak`; // Or nodePath.basename(sourceFilePath)
         const ucasFileName = `${baseName}.ucas`;
         const utocFileName = `${baseName}.utoc`;
 
-        const destinationPakPath = nodePath.join(stagingPath, pakFileName);
+        const destinationPakPath = nodePath.join(modSpecificStagingDir, pakFileName);
 
         // Copy .pak file. Overwrites if exists.
         fs.copyFileSync(sourceFilePath, destinationPakPath);
@@ -526,7 +564,7 @@ ipcMain.handle(
         // Check for and copy associated .ucas file
         const sourceUcasPath = nodePath.join(sourceDir, ucasFileName);
         if (fs.existsSync(sourceUcasPath)) {
-          const destinationUcasPath = nodePath.join(stagingPath, ucasFileName);
+          const destinationUcasPath = nodePath.join(modSpecificStagingDir, ucasFileName);
           fs.copyFileSync(sourceUcasPath, destinationUcasPath);
           modInfo.ucasPath = destinationUcasPath;
           console.log(
@@ -537,7 +575,7 @@ ipcMain.handle(
         // Check for and copy associated .utoc file
         const sourceUtocPath = nodePath.join(sourceDir, utocFileName);
         if (fs.existsSync(sourceUtocPath)) {
-          const destinationUtocPath = nodePath.join(stagingPath, utocFileName);
+          const destinationUtocPath = nodePath.join(modSpecificStagingDir, utocFileName);
           fs.copyFileSync(sourceUtocPath, destinationUtocPath);
           modInfo.utocPath = destinationUtocPath;
           console.log(
@@ -829,9 +867,13 @@ async function getGameModsPath(): Promise<string | null> {
 
 ipcMain.handle(
   'enable-mod',
-  async (event, modOriginalPath: string, modName: string) => {
+  async (event, modStagingPakPath: string, modName: string) => {
+    // modStagingPakPath è il percorso del file .pak principale della mod nell'area di staging,
+    // es. /path/to/staging_area/MyMod_Sanitized/MyMod.pak
+    // modName è il nome base sanificato della mod, es. "MyMod_Sanitized" o "MyMod"
+    // che corrisponde al nome della directory della mod nell'area di staging.
     log.info(
-      `[Main] Attempting to enable mod: "${modName}" from path: "${modOriginalPath}"`
+      `[Main] Attempting to enable mod: "${modName}" from staging PAK path: "${modStagingPakPath}"`
     );
 
     const gameModsPath = await getGameModsPath();
@@ -845,7 +887,6 @@ ipcMain.handle(
       };
     }
 
-    // Assicurati che la cartella ~mods esista
     try {
       if (!fs.existsSync(gameModsPath)) {
         await fsPromises.mkdir(gameModsPath, { recursive: true });
@@ -862,68 +903,73 @@ ipcMain.handle(
       };
     }
 
-    const baseName = nodePath.basename(modOriginalPath); // e.g., MyMod.pak
-    const destPakPath = nodePath.join(gameModsPath, baseName);
-
-    // >>> INIZIO NUOVO LOGGING DETTAGLIATO <<<
-    log.info(
-      `[Main ENABLE_MOD_DEBUG] Original mod path (in staging): "${modOriginalPath}"`
-    );
-    log.info(`[Main ENABLE_MOD_DEBUG] Original base name: "${baseName}"`);
-    log.info(
-      `[Main ENABLE_MOD_DEBUG] Destination path (in game's ~mods): "${destPakPath}"`
-    );
-    // >>> FINE NUOVO LOGGING DETTAGLIATO <<<
-
     try {
-      log.info(`[Main] Copying "${modOriginalPath}" to "${destPakPath}"`);
-      await fsPromises.copyFile(modOriginalPath, destPakPath);
-      log.info(
-        `[Main] Successfully copied PAK file for mod "${modName}" to game directory.`
-      );
-
-      // Gestione file .ucas e .utoc associati
-      const sourceDir = nodePath.dirname(modOriginalPath);
-      const baseNameWithoutExt = baseName.replace(/\.pak$/, '');
-      const ucasSourcePath = nodePath.join(
-        sourceDir,
-        `${baseNameWithoutExt}.ucas`
-      );
-      const utocSourcePath = nodePath.join(
-        sourceDir,
-        `${baseNameWithoutExt}.utoc`
-      );
-
-      try {
-        if (await fsPromises.stat(ucasSourcePath)) {
-          const newUcasName = `${baseNameWithoutExt}.ucas`;
-          const destUcasPath = nodePath.join(gameModsPath, newUcasName);
-          log.info(`[Enable Mod] Copying ${ucasSourcePath} to ${destUcasPath}`);
-          await fsPromises.copyFile(ucasSourcePath, destUcasPath);
+      const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
+      let maxIndex = -1;
+      for (const item of itemsInGameModsDir) {
+        const itemPath = nodePath.join(gameModsPath, item);
+        try {
+          // Assicurati che sia una directory prima di tentare di matchare il nome
+          if (fs.lstatSync(itemPath).isDirectory()) {
+            const match = item.match(/^(\d{3})_/); // Regex per estrarre NNN
+            if (match && match[1]) {
+              const currentIndex = parseInt(match[1], 10);
+              if (currentIndex > maxIndex) {
+                maxIndex = currentIndex;
+              }
+            }
+          }
+        } catch (e: any) {
+          // Ignora errori se lstat fallisce o l'item non è una directory, ecc.
+          log.warn(`[Enable Mod] Error processing item ${item} in ${gameModsPath}: ${e.message}`);
         }
-      } catch (e) {
-        // File .ucas non trovato, va bene
-        log.info(`[Enable Mod] No .ucas file found for ${baseName}`);
       }
+      const nextModIndex = maxIndex + 1; // Il prossimo indice è il massimo trovato + 1
+      const numericPrefix = String(nextModIndex).padStart(3, '0');
 
-      try {
-        if (await fsPromises.stat(utocSourcePath)) {
-          const newUtocName = `${baseNameWithoutExt}.utoc`;
-          const destUtocPath = nodePath.join(gameModsPath, newUtocName);
-          log.info(`[Enable Mod] Copying ${utocSourcePath} to ${destUtocPath}`);
-          await fsPromises.copyFile(utocSourcePath, destUtocPath);
-        }
-      } catch (e) {
-        // File .utoc non trovato, va bene
-        log.info(`[Enable Mod] No .utoc file found for ${baseName}`);
-      }
+      // Il nome della cartella di destinazione nel gioco userà il modName fornito.
+      // Questo modName dovrebbe essere il nome sanificato della directory della mod nello staging.
+      const targetGameModFolderName = `${numericPrefix}_${modName}`;
+      const destModFolderPathInGame = nodePath.join(gameModsPath, targetGameModFolderName);
+
+      // La directory sorgente è la cartella della mod nell'area di staging.
+      // Se modStagingPakPath è ".../staging/MyMod/MyMod.pak",
+      // allora sourceModStagingDirectory è ".../staging/MyMod/"
+      const sourceModStagingDirectory = nodePath.dirname(modStagingPakPath);
 
       log.info(
-        `[Enable Mod] Mod ${baseName} enabled successfully as ${baseName}`
+        `[Main ENABLE_MOD] Source mod staging directory: "${sourceModStagingDirectory}"`
       );
-      return { success: true, newPath: destPakPath }; // Potremmo voler ritornare il nuovo path completo
+      log.info(
+        `[Main ENABLE_MOD] Target mod folder name in game: "${targetGameModFolderName}"`
+      );
+      log.info(
+        `[Main ENABLE_MOD] Full destination path in game: "${destModFolderPathInGame}"`
+      );
+
+      // Verifica se la directory sorgente esiste
+      if (!fs.existsSync(sourceModStagingDirectory)) {
+        log.error(`[Main ENABLE_MOD] Source staging directory does not exist: ${sourceModStagingDirectory}`);
+        return {
+          success: false,
+          error: `Mod source directory not found in staging: ${sourceModStagingDirectory}`,
+        };
+      }
+
+      // Non è necessario creare destModFolderPathInGame esplicitamente qui,
+      // perché copyDirRecursive lo farà se non esiste.
+
+      log.info(
+        `[Main] Copying mod directory from "${sourceModStagingDirectory}" to "${destModFolderPathInGame}"`
+      );
+      await copyDirRecursive(sourceModStagingDirectory, destModFolderPathInGame);
+      log.info(
+        `[Main] Successfully copied directory for mod "${modName}" to "${destModFolderPathInGame}".`
+      );
+
+      return { success: true, newPath: destModFolderPathInGame };
     } catch (error: any) {
-      log.error(`[Enable Mod] Error enabling mod ${baseName}:`, error);
+      log.error(`[Enable Mod] Error enabling mod ${modName}:`, error);
       return {
         success: false,
         error: error.message || 'Unknown error during mod enabling.',
@@ -933,73 +979,76 @@ ipcMain.handle(
 );
 
 ipcMain.handle('disable-mod', async (event, baseModName: string) => {
-  // baseModName qui dovrebbe essere il nome del file SENZA estensione, es. "MyMod"
-  // Se il renderer invia "MyMod.pak", dobbiamo normalizzarlo.
-  const cleanBaseModName = baseModName.replace(/\.pak$/, '');
+  // baseModName è il nome del mod senza estensione e senza prefisso, es. "MyMod" o "KJShortDistBadSinging_P"
+  const rawCleanBaseModName = baseModName.replace(/\\.pak$/, ''); // Nome come fornito, senza .pak
 
-  log.info(`[Disable Mod] Request to disable mod: ${cleanBaseModName}`);
+  log.info(`[Disable Mod] Request to disable mod (raw input): ${rawCleanBaseModName}`);
+
+  // Sanifica il nome base per il confronto, per farlo corrispondere a come sarebbe stato salvato da enable-mod
+  const searchName = sanitizeDirectoryName(rawCleanBaseModName);
+  log.info(`[Disable Mod] Sanitized search name for comparison: ${searchName}`);
   const gameModsPath = await getGameModsPath();
   if (!gameModsPath) {
     return { success: false, error: 'Game folder path not configured.' };
   }
 
-  const pakFileNameToDelete = `${cleanBaseModName}.pak`;
-  const ucasFileNameToDelete = `${cleanBaseModName}.ucas`;
-  const utocFileNameToDelete = `${cleanBaseModName}.utoc`;
-
-  let deleteOccurred = false;
-
   try {
-    // Elimina il file .pak
-    const fullPakPath = nodePath.join(gameModsPath, pakFileNameToDelete);
-    if (fs.existsSync(fullPakPath)) {
-      log.info(`[Disable Mod] Deleting ${fullPakPath}`);
-      await fsPromises.unlink(fullPakPath);
-      deleteOccurred = true;
-    } else {
+    const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
+    let modFolderToDelete: string | undefined;
+
+    for (const item of itemsInGameModsDir) {
+      const itemPath = nodePath.join(gameModsPath, item);
+      log.info(`[Disable Mod - DEBUG] Processing item: "${item}" at path: "${itemPath}"`);
+
+      let isDir = false;
+      try {
+        isDir = fs.lstatSync(itemPath).isDirectory();
+        log.info(`[Disable Mod - DEBUG] Item "${item}" is a directory: ${isDir}`);
+      } catch (e: any) {
+        log.warn(`[Disable Mod - DEBUG] Failed to lstat item "${item}": ${e.message}. Skipping.`);
+        continue; // Salta questo item se lstat fallisce
+      }
+
+      const isNNNPrefixed = /^\d{3}_/.test(item); // CORREZIONE: Rimosso doppio backslash
+      log.info(`[Disable Mod - DEBUG] Item "${item}" is NNN_ prefixed: ${isNNNPrefixed}`);
+
+      if (isDir && isNNNPrefixed) {
+        const folderBaseName = item.substring(4); // Rimuove "NNN_"
+        log.info(`[Disable Mod - DEBUG] Candidate folder: "${item}". Extracted folderBaseName: "${folderBaseName}". Comparing with searchName: "${searchName}" (case-insensitive)`);
+
+        if (folderBaseName.toLowerCase() === searchName.toLowerCase()) {
+          log.info(`[Disable Mod - DEBUG] Match FOUND for "${item}". folderBaseName.toLowerCase(): "${folderBaseName.toLowerCase()}", searchName.toLowerCase(): "${searchName.toLowerCase()}"`);
+          modFolderToDelete = item;
+          break;
+        } else {
+          log.info(`[Disable Mod - DEBUG] Match FAILED for "${item}". folderBaseName.toLowerCase(): "${folderBaseName.toLowerCase()}", searchName.toLowerCase(): "${searchName.toLowerCase()}"`);
+        }
+      } else {
+        let reason = '';
+        if (!isDir) reason += 'Not a directory. ';
+        if (!isNNNPrefixed) reason += 'Not NNN_ prefixed. ';
+        log.info(`[Disable Mod - DEBUG] Item "${item}" skipped. Reason: ${reason.trim()}`);
+      }
+    }
+
+    if (!modFolderToDelete) {
       log.warn(
-        `[Disable Mod] PAK file not found for ${cleanBaseModName} at ${fullPakPath}`
-      );
-    }
-
-    // Elimina il file .ucas associato, se esiste
-    const fullUcasPath = nodePath.join(gameModsPath, ucasFileNameToDelete);
-    if (fs.existsSync(fullUcasPath)) {
-      log.info(`[Disable Mod] Deleting ${fullUcasPath}`);
-      await fsPromises.unlink(fullUcasPath);
-      deleteOccurred = true;
-    } else {
-      log.info(
-        `[Disable Mod] No .ucas file found for ${cleanBaseModName} at ${fullUcasPath}`
-      );
-    }
-
-    // Elimina il file .utoc associato, se esiste
-    const fullUtocPath = nodePath.join(gameModsPath, utocFileNameToDelete);
-    if (fs.existsSync(fullUtocPath)) {
-      log.info(`[Disable Mod] Deleting ${fullUtocPath}`);
-      await fsPromises.unlink(fullUtocPath);
-      deleteOccurred = true;
-    } else {
-      log.info(
-        `[Disable Mod] No .utoc file found for ${cleanBaseModName} at ${fullUtocPath}`
-      );
-    }
-
-    if (deleteOccurred) {
-      log.info(`[Disable Mod] Mod ${cleanBaseModName} disabled successfully.`);
-      return { success: true };
-    } else {
-      log.warn(
-        `[Disable Mod] No files found for mod ${cleanBaseModName} in ${gameModsPath}. It might have been already disabled or named differently.`
+        `[Disable Mod] No directory found for base name ${searchName} in ${gameModsPath} with NNN_ prefix.`
       );
       return {
-        success: true, // Consideriamo comunque un successo se i file non ci sono
-        message: 'Mod files not found, possibly already disabled or removed.',
+        success: true,
+        message: 'Mod directory not found, possibly already disabled or removed.',
       };
     }
+
+    const fullPathToModFolder = nodePath.join(gameModsPath, modFolderToDelete);
+    log.info(`[Disable Mod] Deleting directory ${fullPathToModFolder}`);
+    await fsPromises.rm(fullPathToModFolder, { recursive: true, force: true });
+    log.info(`[Disable Mod] Mod ${searchName} (folder ${modFolderToDelete}) disabled successfully.`);
+    return { success: true };
+
   } catch (error: any) {
-    log.error(`[Disable Mod] Error disabling mod ${cleanBaseModName}:`, error);
+    log.error(`[Disable Mod] Error disabling mod ${searchName}:`, error);
     return {
       success: false,
       error: error.message || 'Unknown error during mod disabling.',
@@ -1014,10 +1063,20 @@ ipcMain.handle('load-mod-lists', async () => {
   log.info('[Main] Renderer requested to load mod lists.');
   try {
     const disabledMods = store.get('savedDisabledMods', []); // Default a array vuoto se non trovato
-    const enabledMods = store.get('savedEnabledMods', []); // Default a array vuoto se non trovato
+    const enabledMods = store.get('savedEnabledMods', []);
     log.info(
       `[Main] Loaded ${disabledMods.length} disabled mods and ${enabledMods.length} enabled mods from store.`
     );
+    if (enabledMods.length > 0 && enabledMods[0]) {
+      log.verbose(
+        `[Main load-mod-lists] First enabled mod from store: ${JSON.stringify(enabledMods[0])}`
+      );
+    }
+    if (disabledMods.length > 0 && disabledMods[0]) {
+      log.verbose(
+        `[Main load-mod-lists] First disabled mod from store: ${JSON.stringify(disabledMods[0])}`
+      );
+    }
     return { success: true, disabledMods, enabledMods };
   } catch (error: any) {
     log.error('[Main] Error loading mod lists from store:', error);
@@ -1042,8 +1101,26 @@ ipcMain.handle(
     log.info(
       `[Main] Renderer requested to save mod lists. Disabled: ${modLists.disabledMods.length}, Enabled: ${modLists.enabledMods.length}`
     );
+    if (modLists.enabledMods.length > 0 && modLists.enabledMods[0]) {
+      log.verbose(
+        `[Main save-mod-lists] First enabled mod received from renderer to save: ${JSON.stringify(modLists.enabledMods[0])}`
+      );
+    }
+    if (modLists.disabledMods.length > 0 && modLists.disabledMods[0]) {
+      log.verbose(
+        `[Main save-mod-lists] First disabled mod received from renderer to save: ${JSON.stringify(modLists.disabledMods[0])}`
+      );
+    }
+
     try {
-      store.set('savedDisabledMods', modLists.disabledMods);
+      // Assicurati che i mod disabilitati non abbiano activePath salvato
+      const disabledToSave = modLists.disabledMods.map((mod) => {
+        const { activePath, ...rest } = mod;
+        return rest;
+      });
+      store.set('savedDisabledMods', disabledToSave);
+
+      // Salva i mod abilitati come vengono ricevuti (dovrebbero includere activePath se il renderer li invia)
       store.set('savedEnabledMods', modLists.enabledMods);
       log.info('[Main] Mod lists saved successfully to store.');
       return { success: true };
@@ -1072,25 +1149,37 @@ ipcMain.handle('scan-staging-directory', async () => {
       return { success: true, mods: [] };
     }
 
-    const files = await fsPromises.readdir(stagingPath);
-    const pakFiles: ModItemForStore[] = [];
+    const items = await fsPromises.readdir(stagingPath, { withFileTypes: true });
+    const stagedMods: ModItemForStore[] = [];
 
-    for (const file of files) {
-      if (nodePath.extname(file).toLowerCase() === '.pak') {
-        const filePath = nodePath.join(stagingPath, file);
-        // Potenzialmente qui potremmo voler leggere più metadati dal file .pak se necessario
-        // Per ora, usiamo il nome del file come nome del mod e il path come ID.
-        pakFiles.push({
-          id: filePath, // Usare il path completo come ID unico
-          name: file, // Nome del file
-          path: filePath, // Path completo al file .pak nella staging
-        });
+    for (const item of items) {
+      if (item.isDirectory()) {
+        const modFolderName = item.name;
+        const modFolderPath = nodePath.join(stagingPath, modFolderName);
+        try {
+          const filesInsideModFolder = await fsPromises.readdir(modFolderPath);
+          // Cerca il primo file .pak all'interno della cartella della mod
+          const pakFileName = filesInsideModFolder.find(f => nodePath.extname(f).toLowerCase() === '.pak');
+
+          if (pakFileName) {
+            const pakFilePath = nodePath.join(modFolderPath, pakFileName);
+            stagedMods.push({
+              id: pakFilePath, // ID è il path completo al .pak
+              name: modFolderName, // Nome è il nome della cartella della mod
+              path: pakFilePath, // Path è lo stesso dell'ID
+            });
+          } else {
+            log.warn(`[scan-staging-directory] No .pak file found in mod directory: ${modFolderPath}`);
+          }
+        } catch (e: any) {
+          log.error(`[scan-staging-directory] Error reading mod directory ${modFolderPath}: ${e.message}`);
+        }
       }
     }
     log.info(
-      `[Main] Found ${pakFiles.length} .pak files in staging directory.`
+      `[Main] Found ${stagedMods.length} mods (directories with .pak files) in staging directory.`
     );
-    return { success: true, mods: pakFiles };
+    return { success: true, mods: stagedMods };
   } catch (error: any) {
     log.error('[Main] Error scanning staging directory:', error);
     return {
@@ -1104,7 +1193,8 @@ ipcMain.handle('scan-staging-directory', async () => {
 
 // --- Helper function to scan a directory for .pak files and return ModItemForStore[] ---
 async function scanDirectoryForPaks(
-  directoryPath: string | null
+  directoryPath: string | null,
+  isGameModsDirectory: boolean = false
 ): Promise<ModItemForStore[]> {
   if (!directoryPath || !fs.existsSync(directoryPath)) {
     log.info(
@@ -1114,21 +1204,80 @@ async function scanDirectoryForPaks(
   }
 
   try {
-    const files = await fsPromises.readdir(directoryPath);
+    const items = await fsPromises.readdir(directoryPath, { withFileTypes: true });
     const pakFiles: ModItemForStore[] = [];
-    for (const file of files) {
-      if (nodePath.extname(file).toLowerCase() === '.pak') {
-        const filePath = nodePath.join(directoryPath, file);
-        // Per coerenza, l'ID è il path completo del .pak, il nome è il nome del file.
-        pakFiles.push({
-          id: filePath,
-          name: file, // Questo è il nome del file con estensione, es: MyMod.pak
-          path: filePath,
-        });
+
+    if (isGameModsDirectory) {
+      // Scansiona le sottocartelle NNN_ModName
+      for (const item of items) {
+        if (item.isDirectory() && /^\d{3}_/.test(item.name)) {
+          const modFolderName = item.name; // Es: 000_MyMod
+          const actualModName = modFolderName.substring(4); // Es: MyMod
+          const modFolderPath = nodePath.join(directoryPath, modFolderName);
+
+          try {
+            const filesInsideModFolder = await fsPromises.readdir(modFolderPath);
+            let foundPakFile: string | undefined;
+            // Cerca un file .pak che corrisponda al nome base del mod (es. MyMod.pak)
+            // o il primo .pak trovato se non c'è corrispondenza esatta.
+            const expectedPakName = `${actualModName}.pak`;
+            if (filesInsideModFolder.includes(expectedPakName)) {
+              foundPakFile = expectedPakName;
+            } else {
+              foundPakFile = filesInsideModFolder.find(f => f.toLowerCase().endsWith('.pak'));
+            }
+
+            if (foundPakFile) {
+              const pakFilePath = nodePath.join(modFolderPath, foundPakFile);
+              pakFiles.push({
+                id: pakFilePath,       // ID è il path completo al .pak dentro la cartella NNN_
+                name: actualModName,   // Nome è il nome base del mod (senza NNN_ e senza .pak)
+                path: pakFilePath,     // Path è lo stesso dell'ID (percorso del .pak di staging per riferimento)
+                                       // Tuttavia, per i mod attivi, l'ID primario di riferimento nel renderer
+                                       // è il path di staging. Qui stiamo scansionando la cartella ~mods.
+                                       // Il 'path' qui dovrebbe idealmente riferirsi al path di staging originale
+                                       // se potessimo determinarlo. Per ora, usiamo pakFilePath, ma
+                                       // sync-mod-states dovrà riconciliare questo.
+                                       // L'importante è activePath.
+                activePath: modFolderPath, // Percorso della cartella NNN_NomeMod
+              });
+            } else {
+              log.warn(`[scanDirectoryForPaks] No .pak file found in mod directory: ${modFolderPath}`);
+            }
+          } catch (e: any) {
+            log.error(`[scanDirectoryForPaks] Error reading mod directory ${modFolderPath}: ${e.message}`);
+          }
+        }
+      }
+    } else {
+      // Scansiona le sottocartelle per i mod (per la staging directory)
+      for (const item of items) {
+        if (item.isDirectory()) {
+          const modFolderName = item.name;
+          const modFolderPath = nodePath.join(directoryPath, modFolderName);
+          try {
+            const filesInsideModFolder = await fsPromises.readdir(modFolderPath);
+            const pakFileName = filesInsideModFolder.find(f => nodePath.extname(f).toLowerCase() === '.pak');
+
+            if (pakFileName) {
+              const pakFilePath = nodePath.join(modFolderPath, pakFileName);
+              pakFiles.push({
+                id: pakFilePath,       // ID è il path completo al .pak
+                name: modFolderName,   // Nome è il nome della cartella della mod
+                path: pakFilePath,     // Path è lo stesso dell'ID
+              });
+            } else {
+              log.warn(`[scanDirectoryForPaks - Staging] No .pak file found in mod directory: ${modFolderPath}`);
+            }
+          } catch (e: any) {
+            log.error(`[scanDirectoryForPaks - Staging] Error reading mod directory ${modFolderPath}: ${e.message}`);
+          }
+        }
       }
     }
+
     log.info(
-      `[scanDirectoryForPaks] Found ${pakFiles.length} .pak files in ${directoryPath}`
+      `[scanDirectoryForPaks] Found ${pakFiles.length} .pak entries in ${directoryPath} (mode: ${isGameModsDirectory ? 'game_mods' : 'staging'})`
     );
     return pakFiles;
   } catch (error: any) {
@@ -1161,8 +1310,9 @@ ipcMain.handle('sync-mod-states', async () => {
       `[sync-mod-states] Store state - Disabled: ${storeDisabledMods.length}, Enabled: ${storeEnabledMods.length}`
     );
 
-    const actualStagedPaks = await scanDirectoryForPaks(stagingPath); // Mods in staging folder
-    const actualGamePaks = await scanDirectoryForPaks(gameModsPath); // Mods in game's ~mods folder
+    // Passa il flag corretto a scanDirectoryForPaks
+    const actualStagedPaks = await scanDirectoryForPaks(stagingPath, false); // false o ometti
+    const actualGamePaks = await scanDirectoryForPaks(gameModsPath, true); // true per la cartella ~mods
 
     const finalEnabledMods: ModItemForStore[] = [];
     const finalDisabledMods: ModItemForStore[] = [];
@@ -1188,21 +1338,23 @@ ipcMain.handle('sync-mod-states', async () => {
         const gameEquivalent = gamePakMapByName.get(
           nodePath.basename(stagedEquivalent.name, '.pak')
         ); // Use stagedEquivalent.name for basename
-        if (
-          gameEquivalent &&
-          nodePath.basename(gameEquivalent.name) ===
-            nodePath.basename(stagedEquivalent.name)
-        ) {
-          // Mod exists in staging and in game ~mods folder
-          finalEnabledMods.push(stagedEquivalent); // Use the ModItem from staging for consistency
-          finalEnabledModIds.add(stagedEquivalent.id);
+        if (gameEquivalent) { // gameEquivalent è l'item da actualGamePaks, quindi ha gameEquivalent.activePath
+          // Mod esiste nello staging e nella cartella ~mods del gioco.
+          const modToEnable: ModItemForStore = {
+            ...stagedEquivalent, // Prendi i dati base dallo staging (ID, path di staging, nome cartella staging)
+            activePath: gameEquivalent.activePath, // Prendi l'activePath effettivo dal file system del gioco
+          };
+          finalEnabledMods.push(modToEnable);
+          finalEnabledModIds.add(modToEnable.id);
         } else {
-          // Mod exists in staging, but not in game's ~mods. Treat as disabled.
+          // Mod esiste nello staging, ma non nella cartella ~mods del gioco. Tratta come disabilitato.
           log.warn(
             `[sync-mod-states] Mod "${stagedEquivalent.name}" was enabled in store, found in staging, but NOT in game's ~mods. Moving to disabled.`
           );
-          finalDisabledMods.push(stagedEquivalent);
-          finalDisabledModIds.add(stagedEquivalent.id);
+          const modToDisable: ModItemForStore = { ...stagedEquivalent };
+          delete modToDisable.activePath; // Assicurati che non ci sia activePath
+          finalDisabledMods.push(modToDisable);
+          finalDisabledModIds.add(modToDisable.id);
         }
       } else {
         log.warn(
@@ -1246,23 +1398,30 @@ ipcMain.handle('sync-mod-states', async () => {
       if (correspondingStagedPak) {
         if (!finalEnabledModIds.has(correspondingStagedPak.id)) {
           log.info(
-            `[sync-mod-states] Mod "${correspondingStagedPak.name}" found in game's ~mods and staging, but not in current finalEnabledMods list. Marking as enabled.`
+            `[sync-mod-states] Mod "${correspondingStagedPak.name}" (from staging) found in game's ~mods (as "${gamePak.name}"), but not in current finalEnabledMods list. Marking as enabled.`
           );
-          finalEnabledMods.push(correspondingStagedPak);
-          finalEnabledModIds.add(correspondingStagedPak.id);
-          // If it was accidentally in finalDisabledMods from a previous step (e.g. store said enabled, but not in game, so moved to disabled)
-          // ensure it's removed from disabled if we are now affirmatively enabling it because it *is* in game ~mods.
+          const modToEnable: ModItemForStore = {
+            ...correspondingStagedPak, // Dati base dallo staging
+            activePath: gamePak.activePath, // activePath dalla cartella ~mods
+          };
+          finalEnabledMods.push(modToEnable);
+          finalEnabledModIds.add(modToEnable.id);
+
+          // Se era stato erroneamente aggiunto a finalDisabledMods, rimuovilo.
           if (finalDisabledModIds.has(correspondingStagedPak.id)) {
             const index = finalDisabledMods.findIndex(
               (m) => m.id === correspondingStagedPak!.id
             );
-            if (index > -1) finalDisabledMods.splice(index, 1);
+            if (index > -1) {
+              finalDisabledMods.splice(index, 1);
+              log.info(`[sync-mod-states] Removed ${correspondingStagedPak.name} from finalDisabledMods as it's now confirmed enabled.`);
+            }
             finalDisabledModIds.delete(correspondingStagedPak.id);
           }
         }
       } else {
         log.warn(
-          `[sync-mod-states] Mod "${gamePak.name}" found in game's ~mods, but no corresponding source file found in staging. Cannot manage this mod.`
+          `[sync-mod-states] Mod "${gamePak.name}" (folder ${gamePak.activePath}) found in game's ~mods, but no corresponding source file found in staging. Cannot manage this mod.`
         );
         // This is an "orphaned" mod in the game's ~mods folder.
       }
@@ -1282,15 +1441,35 @@ ipcMain.handle('sync-mod-states', async () => {
       }
     }
 
-    // Final deduplication and ensure no mod is in both lists
-    // Rebuild from IDs to ensure unique objects if any were added multiple times by mistake
-    const uniqueFinalEnabledMods = Array.from(finalEnabledModIds).map(
-      (id) => stagedPakMapById.get(id)!
-    );
-    // For disabled, ensure they are in staging and not in the final enabled list
-    const uniqueFinalDisabledMods = Array.from(finalDisabledModIds)
-      .map((id) => stagedPakMapById.get(id)!)
-      .filter((mod) => mod && !finalEnabledModIds.has(mod.id));
+    // Final deduplication using the already constructed finalEnabledMods and finalDisabledMods lists,
+    // which contain ModItemForStore objects potentially enriched with activePath.
+    const finalEnabledMap = new Map<string, ModItemForStore>();
+    for (const mod of finalEnabledMods) {
+      if (!finalEnabledMap.has(mod.id)) {
+        finalEnabledMap.set(mod.id, mod);
+      } else {
+        // If a mod with the same ID is already in the map, prioritize the one with activePath if the current one doesn't have it.
+        // This handles edge cases, though prior logic should ideally prevent needing this.
+        const existingMod = finalEnabledMap.get(mod.id)!;
+        if (!existingMod.activePath && mod.activePath) {
+          finalEnabledMap.set(mod.id, mod);
+          log.warn(`[sync-mod-states] Deduplication: Updated mod ${mod.id} in finalEnabledMap with version that has activePath.`);
+        }
+      }
+    }
+    const uniqueFinalEnabledMods = Array.from(finalEnabledMap.values());
+
+    const finalDisabledMap = new Map<string, ModItemForStore>();
+    for (const mod of finalDisabledMods) {
+      if (!finalEnabledMap.has(mod.id)) { // Ensure it's not in the enabled list
+        if (!finalDisabledMap.has(mod.id)) {
+          // Ensure activePath is not present for disabled mods
+          const { activePath, ...modWithoutActivePath } = mod;
+          finalDisabledMap.set(mod.id, modWithoutActivePath);
+        }
+      }
+    }
+    const uniqueFinalDisabledMods = Array.from(finalDisabledMap.values());
 
     log.info(
       `[sync-mod-states] Synchronization complete. Final - Disabled: ${uniqueFinalDisabledMods.length}, Enabled: ${uniqueFinalEnabledMods.length}`
@@ -1316,3 +1495,223 @@ ipcMain.handle('sync-mod-states', async () => {
 });
 
 // --- END IPC Handler for Synchronizing Mod States ---
+
+// --- IPC Handler for Updating Mod Order ---
+ipcMain.handle(
+  'update-mod-order',
+  async (event, orderedMods: ModItemForStore[]): Promise<{ success: boolean; updatedMods: ModItemForStore[]; error?: string }> => {
+    log.info(
+      `[Main - update-mod-order] Received request to update mod order. ${orderedMods.length} mods.`
+    );
+    log.verbose(
+      `[Main - update-mod-order] Ordered mods (activePaths): ${JSON.stringify(orderedMods.map(m => m.activePath))}`
+    );
+
+    if (orderedMods.some(mod => !mod.activePath)) {
+      log.error('[Main - update-mod-order] Error: Some mods in the list are missing their activePath.');
+      return { success: false, error: 'Some mods are missing their activePath, cannot update order.', updatedMods: orderedMods };
+    }
+
+    const gameModsPath = await getGameModsPath();
+    if (!gameModsPath) {
+      log.error(
+        '[Main - update-mod-order] Game mods path could not be determined.'
+      );
+      return {
+        success: false,
+        error: 'Game installation path not configured.',
+        updatedMods: orderedMods,
+      };
+    }
+
+    if (!fs.existsSync(gameModsPath)) {
+      log.warn(
+        `[Main - update-mod-order] Game mods directory does not exist: ${gameModsPath}. Nothing to reorder.`
+      );
+      return { success: true, updatedMods: orderedMods }; // No mods to reorder, operation is trivially successful
+    }
+
+    const renameOperations: {
+      originalModId: string; // Store mod.id for easier mapping later
+      oldPath: string;
+      newPath: string;
+      tempPath: string;
+    }[] = [];
+    const tempSuffix = '_imm_temp_rename';
+
+    try {
+      // Fase 1: Calcola le operazioni di rinomina e i nomi temporanei
+      for (let i = 0; i < orderedMods.length; i++) {
+        const mod = orderedMods[i];
+        const currentModFullPath = mod.activePath!; // Assicurato dal controllo precedente
+        const currentModFolderName = nodePath.basename(currentModFullPath);
+
+        const baseNameMatch = currentModFolderName.match(/^\d{3}_(.*)$/);
+        let baseName: string;
+
+        if (baseNameMatch && baseNameMatch[1]) {
+          baseName = baseNameMatch[1];
+        } else {
+          // Se il nome della cartella non ha il prefisso NNN_ (es. un mod aggiunto manualmente senza prefisso),
+          // usa il nome della cartella così com'è, ma sanificato.
+          // Oppure, potremmo usare mod.name (che è il nome della cartella di staging sanificato)
+          // Per coerenza con la logica di estrazione, se non c'è NNN_, usiamo il nome della cartella.
+          log.warn(
+            `[Main - update-mod-order] Folder name "${currentModFolderName}" from path "${currentModFullPath}" does not have NNN_ prefix. Using full name as baseName.`
+          );
+          baseName = sanitizeDirectoryName(currentModFolderName); // Usa il nome sanificato della cartella
+          // Alternativamente, se mod.name è più affidabile come nome base pulito:
+          // baseName = mod.name; // Assumendo che mod.name sia il nome base desiderato
+        }
+
+        const newNumericPrefix = String(i).padStart(3, '0');
+        const newFolderName = `${newNumericPrefix}_${baseName}`;
+        const newModFullPath = nodePath.join(gameModsPath, newFolderName);
+
+        if (currentModFullPath !== newModFullPath) {
+          renameOperations.push({
+            originalModId: mod.id,
+            oldPath: currentModFullPath,
+            newPath: newModFullPath,
+            tempPath: currentModFullPath + tempSuffix,
+          });
+        }
+      }
+
+      log.verbose(
+        `[Main - update-mod-order] Calculated rename operations: ${JSON.stringify(
+          renameOperations
+        )}`
+      );
+      if (renameOperations.length === 0) {
+        log.info('[Main - update-mod-order] No rename operations needed.');
+        return { success: true, updatedMods: orderedMods };
+      }
+
+      const successfullyRenamedToTemp: string[] = [];
+      for (const op of renameOperations) {
+        if (fs.existsSync(op.oldPath)) {
+          if (fs.existsSync(op.tempPath)) {
+            log.warn(`[Main - update-mod-order] Temporary path ${op.tempPath} already exists. Attempting to remove it.`);
+            try {
+              await fsPromises.rm(op.tempPath, { recursive: true, force: true });
+              log.info(`[Main - update-mod-order] Successfully removed existing temporary path ${op.tempPath}.`);
+            } catch (rmError: any) {
+              log.error(`[Main - update-mod-order] Failed to remove existing temporary path ${op.tempPath}: ${rmError.message}. Skipping rename for ${op.oldPath}.`);
+              continue;
+            }
+          }
+          log.info(
+            `[Main - update-mod-order] Attempting to rename ${op.oldPath} to temporary ${op.tempPath}`
+          );
+          try {
+            await fsPromises.rename(op.oldPath, op.tempPath);
+            const tempExists = fs.existsSync(op.tempPath);
+            log.info(
+              `[Main - update-mod-order] SUCCESSFULLY renamed ${op.oldPath} to temporary ${op.tempPath}. Verification - tempPath exists: ${tempExists}`
+            );
+            if (!tempExists) {
+              log.error(`[Main - update-mod-order] CRITICAL: Rename to temp for ${op.oldPath} reported success, but ${op.tempPath} does NOT exist.`);
+            }
+            successfullyRenamedToTemp.push(op.tempPath);
+          } catch (renameError: any) {
+            log.error(
+              `[Main - update-mod-order] FAILED to rename ${op.oldPath} to temporary ${op.tempPath}: ${renameError.message}`
+            );
+            throw renameError;
+          }
+        } else {
+          log.warn(
+            `[Main - update-mod-order] Old path ${op.oldPath} does not exist. Skipping rename to temp.`
+          );
+        }
+      }
+
+      for (const op of renameOperations) {
+        if (successfullyRenamedToTemp.includes(op.tempPath)) {
+           if (fs.existsSync(op.newPath) && op.newPath !== op.tempPath) {
+             log.warn(`[Main - update-mod-order] Target path ${op.newPath} already exists. Attempting to remove it before renaming from temp.`);
+             try {
+                await fsPromises.rm(op.newPath, { recursive: true, force: true });
+                log.info(`[Main - update-mod-order] Successfully removed existing target path ${op.newPath}.`);
+             } catch (rmError: any) {
+                log.error(`[Main - update-mod-order] Failed to remove existing target path ${op.newPath}: ${rmError.message}. Skipping rename for ${op.tempPath}.`);
+                continue;
+             }
+           }
+          log.info(
+            `[Main - update-mod-order] Attempting to rename temporary ${op.tempPath} to final ${op.newPath}`
+          );
+          try {
+            await fsPromises.rename(op.tempPath, op.newPath);
+            const finalExists = fs.existsSync(op.newPath);
+            const tempStillExists = fs.existsSync(op.tempPath);
+            log.info(
+              `[Main - update-mod-order] SUCCESSFULLY renamed temporary ${op.tempPath} to final ${op.newPath}. Verification - newPath exists: ${finalExists}, tempPath still exists: ${tempStillExists}`
+            );
+            if (!finalExists) {
+              log.error(`[Main - update-mod-order] CRITICAL: Rename from temp ${op.tempPath} to final ${op.newPath} reported success, but ${op.newPath} does NOT exist.`);
+            }
+            if (finalExists && tempStillExists) {
+              log.warn(`[Main - update-mod-order] UNEXPECTED: Rename from temp ${op.tempPath} to final ${op.newPath} reported success, newPath exists, BUT tempPath ${op.tempPath} ALSO still exists. This might indicate a copy instead of a move, or an issue.`);
+            }
+          } catch (renameError: any) {
+            log.error(
+              `[Main - update-mod-order] FAILED to rename temporary ${op.tempPath} to final ${op.newPath}: ${renameError.message}`
+            );
+            throw renameError;
+          }
+        } else {
+          log.warn(
+            `[Main - update-mod-order] Temporary path ${op.tempPath} was not created (original ${op.oldPath} likely missing). Skipping rename to final ${op.newPath}.`
+          );
+        }
+      }
+
+      const updatedModList = orderedMods.map(mod => {
+        const operation = renameOperations.find(op => op.originalModId === mod.id && op.oldPath === mod.activePath);
+        if (operation) {
+          return { ...mod, activePath: operation.newPath };
+        }
+        // Se il mod non era in renameOperations (perché il suo activePath non necessitava di modifiche),
+        // dobbiamo comunque assicurarci che il suo activePath rifletta il nuovo ordine se il *nome base* è lo stesso
+        // ma il prefisso numerico era diverso.
+        // La logica attuale di `renameOperations` aggiunge solo se `currentModFullPath !== newModFullPath`.
+        // Quindi, se un mod non è in `renameOperations`, il suo `activePath` è già corretto.
+        return mod;
+      });
+
+      log.info(
+        '[Main - update-mod-order] Mod order updated successfully on the file system.'
+      );
+      log.verbose(`[Main - update-mod-order] Returning updated mods: ${JSON.stringify(updatedModList.map(m => ({name: m.name, activePath: m.activePath})))}`);
+      return { success: true, updatedMods: updatedModList };
+
+    } catch (error: any) {
+      log.error('[Main - update-mod-order] Error updating mod order:', error);
+      log.info('[Main - update-mod-order] Attempting to rollback temporary renames...');
+      for (const op of renameOperations) {
+        if (fs.existsSync(op.tempPath)) {
+          try {
+            if (!fs.existsSync(op.oldPath) || op.oldPath === op.tempPath) {
+              log.info(`[Main - update-mod-order - Rollback] Reverting ${op.tempPath} to ${op.oldPath}`);
+              await fsPromises.rename(op.tempPath, op.oldPath);
+            } else {
+              log.warn(`[Main - update-mod-order - Rollback] Original path ${op.oldPath} for ${op.tempPath} is occupied. Cannot automatically revert.`);
+            }
+          } catch (rollbackError: any) {
+            log.error(
+              `[Main - update-mod-order - Rollback] Error reverting ${op.tempPath} to ${op.oldPath}: ${rollbackError.message}`
+            );
+          }
+        }
+      }
+      return {
+        success: false,
+        error: error.message || 'Unknown error updating mod order.',
+        updatedMods: orderedMods, // Restituisce l'array originale in caso di errore
+      };
+    }
+  }
+);
+// --- END IPC Handler for Updating Mod Order ---

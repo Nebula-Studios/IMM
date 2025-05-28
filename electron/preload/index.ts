@@ -113,6 +113,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     error?: string;
   }> => ipcRenderer.invoke('sync-mod-states'),
 
+  // --- Update Mod Order ---
+  updateModOrder: (
+    orderedMods: ModItem[]
+  ): Promise<{ success: boolean; updatedMods: ModItem[]; error?: string }> =>
+    ipcRenderer.invoke('update-mod-order', orderedMods),
+
   // Generic IPC for other cases if needed, though specific APIs are preferred
   ipcOn: (
     channel: string,
