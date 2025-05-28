@@ -46,6 +46,7 @@ export default function App() {
           onHookReloadPath={reloadPath}
           showSettingsPage={showSettingsPage} // Passiamo lo stato di visibilità della pagina impostazioni
           onToggleSettingsPage={handleToggleSettingsPage} // Passiamo la callback per cambiare questo stato
+          // La nuova funzione onRefreshMods verrà gestita all'interno di AppContent o ModManagerLayout
         />
       </main>
       <StatusBar />

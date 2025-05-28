@@ -51,7 +51,8 @@ declare global {
         modName: string
       ) => Promise<{ success: boolean; newPath?: string; error?: string }>;
       disableMod: (
-        modName: string // Assuming modName is sufficient to find it in the game's mod folder
+        modName: string, // Assuming modName is sufficient to find it in the game's mod folder
+        isVirtualMod?: boolean
       ) => Promise<{ success: boolean; error?: string }>;
 
       // --- Save/Load Mod Lists ---

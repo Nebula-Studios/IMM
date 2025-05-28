@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Settings, FolderX, HelpCircle } from 'lucide-react';
+import { Settings, FolderX, HelpCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
 // import { APP_VERSION } from '@/lib/constants.ts';
 
@@ -7,12 +7,14 @@ export interface MenuBarProps {
   gameFolderPath: string | null;
   onDevClearFolder: () => Promise<void>;
   onSettingsClick: () => void;
+  onRefreshMods: () => void; // Nuova prop per l'aggiornamento
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
   gameFolderPath,
   onDevClearFolder,
   onSettingsClick,
+  onRefreshMods, // Nuova prop
 }) => {
   useEffect(() => {
     // Questo log è cruciale!
@@ -65,6 +67,16 @@ const MenuBar: React.FC<MenuBarProps> = ({
         >
           <HelpCircle className="h-4 w-4 mr-1" />
           Report Bug
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRefreshMods} // Chiama la nuova funzione
+          title="Refresh Mod List"
+        >
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Refresh Mods
         </Button>
 
         {/* Pulsante per resettare il percorso - SOLO SVILUPPO */}

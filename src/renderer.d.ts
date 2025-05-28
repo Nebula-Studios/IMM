@@ -40,7 +40,8 @@ export interface IElectronAPI {
     modName: string
   ) => Promise<{ success: boolean; newPath?: string; error?: string }>;
   disableMod: (
-    modName: string
+    modName: string,
+    isVirtualMod?: boolean
   ) => Promise<{ success: boolean; error?: string }>;
   loadModLists: () => Promise<{
     success: boolean;
@@ -80,6 +81,24 @@ export interface IElectronAPI {
   updateModOrder: (
     orderedMods: ModItem[]
   ) => Promise<{ success: boolean; updatedMods: ModItem[]; error?: string }>;
+
+  // --- Rename Mod Staging Directory ---
+  renameModStagingDirectory: (
+    oldModPakPath: string,
+    newModNameRaw: string
+  ) => Promise<{
+    success: boolean;
+    newModPath?: string;
+    newModName?: string;
+    error?: string;
+  }>;
+  refreshModList: () => Promise<{
+    // Definizione per la nuova funzione di refresh
+    success: boolean;
+    disabledMods?: ModItem[];
+    enabledMods?: ModItem[];
+    error?: string;
+  }>;
 }
 
 declare global {

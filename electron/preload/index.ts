@@ -119,6 +119,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ): Promise<{ success: boolean; updatedMods: ModItem[]; error?: string }> =>
     ipcRenderer.invoke('update-mod-order', orderedMods),
 
+  // --- Rename Mod Staging Directory ---
+  renameModStagingDirectory: (
+    oldModPakPath: string,
+    newModNameRaw: string
+  ): Promise<{
+    success: boolean;
+    newModPath?: string;
+    newModName?: string;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke(
+      'rename-mod-staging-directory',
+      oldModPakPath,
+      newModNameRaw
+    ),
+
+  // --- Refresh Mod List ---
+  refreshModList: (): Promise<{
+    success: boolean;
+    disabledMods?: ModItem[];
+    enabledMods?: ModItem[];
+    error?: string;
+  }> => ipcRenderer.invoke('refresh-mod-list'),
+
   // Generic IPC for other cases if needed, though specific APIs are preferred
   ipcOn: (
     channel: string,

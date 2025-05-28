@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import GameFolderSetup from '@/components/GameFolderSetup.tsx';
 import { ModEnablerStatusNotifier } from '@/components/ModEnablerStatusNotifier.tsx';
 import ModManagerLayout from './ModManagerLayout.tsx';
 import MenuBar from '@/components/layout/MenuBar.tsx';
 import SettingsPage from '@/components/settings/SettingsPage.tsx';
+import { toast } from 'sonner';
 
 interface AppContentProps {
   hookGameFolderPath: string | null;
@@ -33,6 +34,38 @@ export default function AppContent({
   const showSetupModal = hookShowSetupModal;
   const isLoading = hookIsLoading;
 
+  const refreshModListFnRef = useRef<(() => Promise<void>) | null>(null);
+
+  const exposeRefreshFunctionFromLayout = useCallback(
+    (refreshFn: () => Promise<void>) => {
+      console.log(
+        '[AppContent] Received refresh function from ModManagerLayout'
+      );
+      refreshModListFnRef.current = refreshFn;
+    },
+    []
+  );
+
+  const handleRefreshFromMenu = useCallback(async () => {
+    console.log('[AppContent] Refresh mods requested via MenuBar');
+    if (refreshModListFnRef.current) {
+      try {
+        await refreshModListFnRef.current();
+        // Il toast di successo/errore è gestito all'interno di loadAndSyncData in ModManagerLayout
+      } catch (error) {
+        console.error('[AppContent] Error calling refresh function:', error);
+        toast.error('An unexpected error occurred while trying to refresh.');
+      }
+    } else {
+      console.warn(
+        '[AppContent] Refresh function not available from ModManagerLayout yet.'
+      );
+      toast.info(
+        'Refresh functionality is not ready yet. Please wait a moment.'
+      );
+    }
+  }, []);
+
   console.log(
     '[AppContent.tsx] Props: gameFolderPath:',
     gameFolderPath,
@@ -52,6 +85,7 @@ export default function AppContent({
         gameFolderPath={menuBarGamePath}
         onDevClearFolder={onHookHandleDevClearFolder}
         onSettingsClick={onToggleSettingsPage}
+        onRefreshMods={handleRefreshFromMenu}
       />
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-[calc(100%-theme(space.14)-theme(space.8))]">
@@ -71,7 +105,9 @@ export default function AppContent({
           {gameFolderPath && (
             <ModEnablerStatusNotifier gameFolderPath={gameFolderPath} />
           )}
-          <ModManagerLayout />
+          <ModManagerLayout
+            exposeRefreshFunction={exposeRefreshFunctionFromLayout}
+          />
         </>
       )}
     </div>
