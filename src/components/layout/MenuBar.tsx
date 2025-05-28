@@ -44,23 +44,13 @@ const MenuBar: React.FC<MenuBarProps> = ({
           {/* <span className="text-xs text-slate-400">v{APP_VERSION}</span> */}
         </h1>
       </div>
-      <div className="flex-grow px-8">
-        {gameFolderPath && (
-          <div
-            className="text-xs text-center truncate text-slate-400"
-            title={gameFolderPath}
-          >
-            Game Path: {displayPath}
-          </div>
-        )}
-      </div>
       <div className="flex items-center space-x-2">
         <Button
           variant="ghost"
           size="sm"
           onClick={() =>
             handleOpenLink(
-              'https://github.com/NDEVEL0PER/inzoi-mod-manager/issues/new/choose'
+              'https://github.com/Nebula-Studios/IMM/issues/new/choose'
             )
           }
           title="Report a Bug / Request a Feature"

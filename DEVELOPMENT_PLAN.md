@@ -113,10 +113,10 @@ Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manag
 
 ## Fase 3: Finalizzazione e Distribuzione
 
-- [ ] **3.1. Localizzazione:**
+- [x] **3.1. Localizzazione:**
 
-  - [ ] Predisporre l'app per la localizzazione (es. usando `i18next`).
-  - [ ] Aggiungere le traduzioni per Inglese e Italiano.
+  - [x] Predisporre l'app per la localizzazione (es. usando `i18next`).
+  - [x] Aggiungere le traduzioni per Inglese e Italiano.
 
   - _Priorità: Media_
   - _Dipendenze: UI completata_

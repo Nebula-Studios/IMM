@@ -1,38 +1,38 @@
 ---
 name: Feature Request
-about: Suggest una nuova funzionalità per InZOI Mod Manager
+about: Suggest a new feature for InZOI Mod Manager
 title: '[FEATURE] '
 labels: 'enhancement'
 assignees: ''
 ---
 
-## 📋 Descrizione
-Descrizione chiara e concisa della funzionalità richiesta.
+## 📋 Description
+Clear and concise description of the requested feature.
 
-## 🎯 Obiettivo
-Spiega il problema che questa funzionalità risolverebbe.
+## 🎯 Goal
+Explain the problem this feature would solve.
 
-## 💡 Soluzione Proposta
-Descrizione dettagliata di come dovrebbe funzionare.
+## 💡 Proposed Solution
+Detailed description of how it should work.
 
-## 🔧 Implementazione Suggerita
+## 🔧 Suggested Implementation
 - [ ] Step 1
 - [ ] Step 2
 - [ ] Step 3
 
-## 📝 Criteri di Accettazione
-- [ ] Criterio 1
-- [ ] Criterio 2
-- [ ] Criterio 3
+## 📝 Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
 
-## 🔗 Dipendenze
-- Issue correlati
-- Componenti coinvolti
+## 🔗 Dependencies
+- Related Issues
+- Involved Components
 
-## 📊 Priorità
-- [ ] Alta
-- [ ] Media
-- [ ] Bassa
+## 📊 Priority
+- [ ] High
+- [ ] Medium
+- [ ] Low
 
-## 🧪 Test
-Come testare che la funzionalità funzioni correttamente.
+## 🧪 Tests
+How to test that the feature works correctly.
