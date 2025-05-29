@@ -1,6 +1,12 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, Info, CheckCircle, HelpCircle, RefreshCw } from 'lucide-react'; // Aggiunta RefreshCw
+import {
+  ExternalLink,
+  Info,
+  CheckCircle,
+  HelpCircle,
+  RefreshCw,
+} from 'lucide-react'; // Aggiunta RefreshCw
 import { cn } from '@/lib/utils.ts'; // Importa cn
 import { Button } from '../ui/button.tsx';
 
@@ -9,7 +15,10 @@ interface StatusBarProps {
   onTriggerUpdateCheck?: () => void; // Aggiunta la prop per il controllo manuale
 }
 
-const StatusBar: React.FC<StatusBarProps> = ({ className, onTriggerUpdateCheck }) => {
+const StatusBar: React.FC<StatusBarProps> = ({
+  className,
+  onTriggerUpdateCheck,
+}) => {
   const { t } = useTranslation();
   // Informazioni sugli aggiornamenti (potrebbero venire dallo stato dell'app)
   const updateStatusMessage = t('statusBar.noUpdates'); // Esempio
@@ -49,7 +58,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ className, onTriggerUpdateCheck }
   return (
     <footer
       className={cn(
-        'bg-neutral-800 text-slate-400 flex items-center justify-between px-6 py-2 h-10 border-t border-l border-r border-neutral-700 rounded-t-xl mx-4 text-xs shadow-xl',
+        'bg-neutral-900/80 text-slate-400 flex items-center justify-between px-6 py-2 h-10 border-t border-l border-r border-neutral-700 rounded-t-xl mx-4 text-xs shadow-xl',
         className
       )}
     >

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Settings, FolderX, HelpCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/button.tsx'; // Corretto percorso
 // import { APP_VERSION } from '@/lib/constants.ts';
+import appIcon from '/icon.svg'; // Importa l'icona
 import ProfileSelector from '../profiles/ProfileSelector.tsx';
 import ManageProfilesDialog from '../profiles/ManageProfilesDialog.tsx';
 import { getProfileStoreState } from '../../store/profileStore.ts'; // Importa la funzione corretta
@@ -134,9 +135,9 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
   return (
     <>
-      <div className="h-14 px-4 mx-4 mb-1 flex items-center justify-between bg-neutral-800 text-slate-100 border-b border-l border-r border-neutral-700 rounded-b-xl shadow-xl print:hidden">
+      <div className="h-14 px-4 mx-4 mb-1 flex items-center justify-between bg-neutral-900/80 text-slate-100 border-b border-l border-r border-neutral-700 rounded-b-xl shadow-xl print:hidden">
         <div className="flex items-center space-x-2">
-          <img src="/icon.svg" alt="App Icon" className="h-6 w-6" />
+          <img src={appIcon} alt="App Icon" className="h-6 w-6" />
           <h1 className="text-lg font-semibold tracking-tight">
             InZOI Mod Manager{' '}
             {/* <span className="text-xs text-slate-400">v{APP_VERSION}</span> */}

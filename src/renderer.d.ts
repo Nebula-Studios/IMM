@@ -29,6 +29,10 @@ export interface IElectronAPI {
     bitfixFolderExists?: boolean;
     error?: string;
   }>;
+installModEnabler: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
   openExternalLink: (url: string) => Promise<void>;
   checkUpdate: () => Promise<any>;
   startDownload: () => Promise<any>;

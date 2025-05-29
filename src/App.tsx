@@ -8,6 +8,7 @@ import AppContent from '@/components/layout/AppContent.tsx';
 import { Toaster } from '@/components/ui/sonner.tsx';
 import { useGameFolderPath } from '@/hooks/useGameFolderPath.ts';
 import { useTheme } from '@/hooks/useTheme.ts'; // Aggiunto import per useTheme
+import backgroundImage from '/bg.jpg'; // Importa l'immagine
 
 export default function App() {
   const {
@@ -43,9 +44,9 @@ export default function App() {
       <div className="flex flex-col w-screen h-screen overflow-hidden text-slate-100 bg-neutral-900/80">
         {/* <h1>{t('greeting')}</h1> Esempio di stringa tradotta rimosso */}
         <img
-          src="/bg_nebula.png"
+          src={backgroundImage} // Usa l'immagine importata
         alt="Background"
-        className="absolute inset-0 w-full h-full object-fill top-0 left-0 -z-10 blur-sm"
+        className="absolute inset-0 w-full h-full object-cover top-0 left-0 -z-10 blur-sm"
       />
       {/* MenuBar e StatusBar saranno gestite da AppContent */}
       {/* AppContent ora occupa tutto lo spazio flex disponibile */}
