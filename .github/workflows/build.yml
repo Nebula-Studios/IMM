@@ -28,6 +28,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract version from tag
+        id: get_version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -35,23 +43,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
-          files: | # Aggiornato per includere solo artefatti Windows
-            release/*.exe
-            release/latest.yml 
-            # electron-builder.json specifica artifactName: "${productName}_${version}.${ext}"
-            # e output: "release/${version}", quindi i file saranno in release/NOME_VERSIONE.exe
-            # Per essere più precisi e catturare il file corretto dalla sottocartella della versione:
-            release/${{ github.ref_name }}/*.exe 
-            release/${{ github.ref_name }}/latest.yml
-            # Tuttavia, electron-builder potrebbe mettere i file direttamente in 'release' a seconda della configurazione esatta
-            # Manteniamo i pattern più generici per ora, ma teniamo presente che potrebbero essere necessari aggiustamenti
-            # Se electron-builder crea una sottocartella con il nome della versione (es. release/v1.0.0/),
-            # allora i percorsi dovrebbero essere: release/${{ github.ref_name }}/*.exe e release/${{ github.ref_name }}/latest.yml
-            # Il file electron-builder.json indica "output": "release/${version}", quindi è probabile che sia così.
-            # Aggiorniamo i percorsi per riflettere questo:
-            release/${{ env.GITHUB_REF_NAME }}/*.exe
-            release/${{ env.GITHUB_REF_NAME }}/*.yml 
-            # Usiamo env.GITHUB_REF_NAME per accedere al nome del tag in modo più affidabile
+          files: | # Aggiornato per usare la versione estratta senza 'v'
+            release/${{ steps.get_version.outputs.VERSION }}/*.exe
+            release/${{ steps.get_version.outputs.VERSION }}/*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_NAME: ${{ github.ref_name }} # Esporta il nome del tag come variabile d'ambiente
