@@ -2593,6 +2593,150 @@ ipcMain.handle(
 );
 // --- END IPC Handler for Renaming Mod Staging Directory ---
 
+// --- IPC Handlers for Profile Management ---
+
+const PROFILES_DIR_NAME = 'profiles';
+const PROFILES_FILE_NAME = 'profiles.json';
+
+ipcMain.handle('get-profile-paths', async () => {
+  log.info('[Main Process] Renderer requested profile paths.');
+  try {
+    const userDataPath = app.getPath('userData');
+    const profilesDir = nodePath.join(userDataPath, PROFILES_DIR_NAME);
+    const profilesFilePath = nodePath.join(profilesDir, PROFILES_FILE_NAME);
+    log.info(`[Main Process] Determined profile paths: Dir - ${profilesDir}, File - ${profilesFilePath}`);
+    return { success: true, paths: { profilesDir, profilesFilePath } };
+  } catch (error: any) {
+    log.error('[Main Process] Error getting profile paths:', error);
+    return { success: false, error: error.message || 'Failed to get profile paths.' };
+  }
+});
+
+ipcMain.handle('get-user-data-path', async () => {
+  log.info('[Main Process] Renderer requested user data path.');
+  try {
+    const userDataPath = app.getPath('userData');
+    return { success: true, path: userDataPath };
+  } catch (error: any) {
+    log.error('[Main Process] Error getting user data path:', error);
+    return { success: false, error: error.message || 'Failed to get user data path.' };
+  }
+});
+
+ipcMain.handle('profiles-access', async (event, filePath: string) => {
+  log.info(`[Main Process] Renderer requested to check access to file: ${filePath}`);
+  try {
+    await fsPromises.access(filePath);
+    return { success: true, exists: true };
+  } catch (error: any) {
+    // Se l'errore è ENOENT (file non trovato), non è un vero errore dell'operazione, ma un risultato.
+    if (error.code === 'ENOENT') {
+      return { success: true, exists: false };
+    }
+    log.error(`[Main Process] Error accessing file ${filePath}:`, error);
+    return { success: false, error: error.message || `Failed to access file ${filePath}.`, exists: false };
+  }
+});
+
+ipcMain.handle('profiles-mkdir', async (event, dirPath: string) => {
+  log.info(`[Main Process] Renderer requested to create directory: ${dirPath}`);
+  try {
+    await fsPromises.mkdir(dirPath, { recursive: true });
+    return { success: true };
+  } catch (error: any) {
+    log.error(`[Main Process] Error creating directory ${dirPath}:`, error);
+    return { success: false, error: error.message || `Failed to create directory ${dirPath}.` };
+  }
+});
+
+ipcMain.handle('profiles-read-file', async (event, filePath: string) => {
+  log.info(`[Main Process] Renderer requested to read file: ${filePath}`);
+  try {
+    const content = await fsPromises.readFile(filePath, 'utf-8');
+    return { success: true, content };
+  } catch (error: any) {
+    log.error(`[Main Process] Error reading file ${filePath}:`, error);
+    return { success: false, error: error.message || `Failed to read file ${filePath}.` };
+  }
+});
+
+ipcMain.handle('profiles-write-file', async (event, filePath: string, content: string) => {
+  log.info(`[Main Process] Renderer requested to write file: ${filePath}`);
+  try {
+    await fsPromises.writeFile(filePath, content, 'utf-8');
+    return { success: true };
+  } catch (error: any) {
+    log.error(`[Main Process] Error writing file ${filePath}:`, error);
+    return { success: false, error: error.message || `Failed to write file ${filePath}.` };
+  }
+});
+// --- END IPC Handlers for Profile Management ---
+
+// --- IPC Handlers for Generic File Operations (Import/Export Profiles) ---
+
+ipcMain.handle('show-save-dialog', async (event, options: Electron.SaveDialogOptions) => {
+  log.info('[Main Process] Renderer requested to show save dialog with options:', options);
+  if (!win) {
+    log.error('[Main Process] Main window not available for showSaveDialog.');
+    return { canceled: true, error: 'Main window not available.' };
+  }
+  try {
+    const result = await dialog.showSaveDialog(win, options);
+    log.info('[Main Process] Save dialog result:', result);
+    return result;
+  } catch (error: any) {
+    log.error('[Main Process] Error showing save dialog:', error);
+    return { canceled: true, error: error.message || 'Failed to show save dialog.' };
+  }
+});
+
+ipcMain.handle('show-open-dialog', async (event, options: Electron.OpenDialogOptions) => {
+  log.info('[Main Process] Renderer requested to show open dialog with options:', options);
+  if (!win) {
+    log.error('[Main Process] Main window not available for showOpenDialog.');
+    return { canceled: true, error: 'Main window not available.' };
+  }
+  try {
+    const result = await dialog.showOpenDialog(win, options);
+    log.info('[Main Process] Open dialog result:', result);
+    return result;
+  } catch (error: any) {
+    log.error('[Main Process] Error showing open dialog:', error);
+    return { canceled: true, error: error.message || 'Failed to show open dialog.' };
+  }
+});
+
+ipcMain.handle('read-file-content', async (event, filePath: string) => {
+  log.info(`[Main Process] Renderer requested to read file content: ${filePath}`);
+  try {
+    // Validate filePath if necessary (e.g., ensure it's within allowed directories if sandboxing)
+    // For now, assuming filePath is trusted or validated by the renderer/service layer.
+    const content = await fsPromises.readFile(filePath, 'utf-8');
+    return { success: true, content };
+  } catch (error: any) {
+    log.error(`[Main Process] Error reading file content from ${filePath}:`, error);
+    // Specific check for ENOENT (File not found)
+    if (error.code === 'ENOENT') {
+      return { success: false, error: `File not found: ${filePath}`, code: 'ENOENT' };
+    }
+    return { success: false, error: error.message || `Failed to read file content from ${filePath}.` };
+  }
+});
+
+ipcMain.handle('write-file-content', async (event, filePath: string, content: string) => {
+  log.info(`[Main Process] Renderer requested to write file content to: ${filePath}`);
+  try {
+    // Validate filePath if necessary
+    await fsPromises.writeFile(filePath, content, 'utf-8');
+    return { success: true };
+  } catch (error: any) {
+    log.error(`[Main Process] Error writing file content to ${filePath}:`, error);
+    return { success: false, error: error.message || `Failed to write file content to ${filePath}.` };
+  }
+});
+
+// --- END IPC Handlers for Generic File Operations ---
+
 // --- IPC Handlers for Theme ---
 ipcMain.handle('get-theme', async () => {
   const theme = store.get('theme', 'system'); // Default a 'system' se non impostato

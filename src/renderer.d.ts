@@ -115,6 +115,27 @@ export interface IElectronAPI {
     enabledMods?: ModItem[];
     error?: string;
   }>;
+
+  // --- Profile Management IPC ---
+  getUserDataPath: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  getProfilePaths: () => Promise<{
+    success: boolean;
+    paths?: { profilesDir: string; profilesFilePath: string };
+    error?: string;
+  }>;
+  profilesAccess: (filePath: string) => Promise<{ success: boolean; exists: boolean; error?: string }>;
+  profilesMkdir: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
+  profilesReadFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+  profilesWriteFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
+  // --- END Profile Management IPC ---
+
+  // --- Generic File Operations (Import/Export Profiles) ---
+  showSaveDialog: (options: Electron.SaveDialogOptions) => Promise<Electron.SaveDialogReturnValue>;
+  showOpenDialog: (options: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
+  readFileContent: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string; code?: string }>;
+  writeFileContent: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
+  // --- END Generic File Operations ---
+
   // Theme functions
   getTheme: () => Promise<'light' | 'dark' | 'system'>;
   setTheme: (

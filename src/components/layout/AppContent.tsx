@@ -19,6 +19,7 @@ interface AppContentProps {
   onHookReloadPath: () => Promise<void>;
   showSettingsPage: boolean;
   onToggleSettingsPage: () => void;
+  onTriggerUpdateCheck: () => void; // Aggiunta la nuova prop
 }
 
 export default function AppContent({
@@ -30,6 +31,7 @@ export default function AppContent({
   onHookReloadPath,
   showSettingsPage,
   onToggleSettingsPage,
+  onTriggerUpdateCheck, // Ricevi la nuova prop
 }: AppContentProps) {
   const gameFolderPath = hookGameFolderPath;
   const showSetupModal = hookShowSetupModal;
@@ -114,7 +116,7 @@ export default function AppContent({
           </>
         )}
       </div>
-      <StatusBar /> {/* StatusBar aggiunta in fondo */}
+      <StatusBar onTriggerUpdateCheck={onTriggerUpdateCheck} /> {/* Passa la prop a StatusBar */}
     </div>
   );
 }

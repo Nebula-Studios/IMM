@@ -23,6 +23,7 @@ import ModCard, { ModItem } from '../mod-management/ModCard.tsx'; // Importa Mod
 import ModDropzone, { StagedModInfo } from '../mod-management/ModDropzone.tsx';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
+import { profileService } from '../../services/profileService.ts';
 import {
   Dialog,
   DialogContent,
@@ -115,6 +116,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
             toast.success(
               `Mod "${modToEnable.name}" enabled via context menu. Active path: ${result.newPath}`
             );
+            await profileService.updateActiveProfileModConfigurationIfNeeded();
           } else {
             toast.error(
               `Failed to enable mod "${modToEnable.name}": ${result.error}`
@@ -185,12 +187,13 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
                 [...remainingEnabledMods],
                 `Disable mod ${modToDisable.name} and reorder/rename`
               );
+              // profileService.updateActiveProfileModConfigurationIfNeeded() sarà chiamato da handleEnabledModOrderChange
             } else {
               setEnabledMods([]);
               console.log(
                 '[ContextMenu] No enabled mods left after disabling. List cleared.'
               );
-              // L'useEffect su [disabledMods, enabledMods] dovrebbe salvare le liste.
+              await profileService.updateActiveProfileModConfigurationIfNeeded();
             }
             // Il toast di successo per la disabilitazione e la potenziale rinumerazione
             // è gestito da disableResult e da handleEnabledModOrderChange.
@@ -339,6 +342,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           '[Rename] Mod renamed successfully in state:',
           updatedModItem
         );
+        await profileService.updateActiveProfileModConfigurationIfNeeded();
       } else {
         toast.error(
           `Failed to rename mod in staging: ${result.error || 'Unknown error'}`
@@ -409,6 +413,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         toast.success('Mod order updated successfully on backend.');
         // Sincronizza lo stato con i dati aggiornati dal backend (che includono activePath corretti)
         setEnabledMods(result.updatedMods);
+        await profileService.updateActiveProfileModConfigurationIfNeeded();
       } else {
         toast.error(
           `Failed to update mod order on backend: ${result.error || 'Unknown error'}`

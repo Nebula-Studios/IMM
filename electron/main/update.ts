@@ -14,6 +14,12 @@ export function update(win: Electron.BrowserWindow) {
   autoUpdater.autoDownload = false
   autoUpdater.disableWebInstaller = false
   autoUpdater.allowDowngrade = false
+  autoUpdater.autoInstallOnAppQuit = false // Impedisce l'installazione automatica all'uscita
+
+  // Gestore di errori globale per autoUpdater
+  autoUpdater.on('error', (error: Error) => {
+    win.webContents.send('update-error', { message: `Update error: ${error.message}`, error });
+  });
 
   // start check
   autoUpdater.on('checking-for-update', function () { })

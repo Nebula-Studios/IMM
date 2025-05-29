@@ -1,6 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.nebulastudios.inzoimodmanager",
+  "productName": "Inzoi Mod Manager",
+  "copyright": "Copyright © 2025 Nebula Studios",
   "asar": true,
   "directories": {
     "output": "release/${version}"
@@ -9,14 +11,8 @@
     "dist-electron",
     "dist"
   ],
-  "mac": {
-    "artifactName": "${productName}_${version}.${ext}",
-    "target": [
-      "dmg",
-      "zip"
-    ]
-  },
   "win": {
+    "icon": "build/icon.ico",
     "target": [
       {
         "target": "nsis",
@@ -34,8 +30,8 @@
     "deleteAppDataOnUninstall": false
   },
   "publish": {
-    "provider": "generic",
-    "channel": "latest",
-    "url": "https://github.com/electron-vite/electron-vite-react/releases/download/v0.9.9/"
+    "provider": "github",
+    "owner": "Nebula-Studios",
+    "repo": "IMM"
   }
 }

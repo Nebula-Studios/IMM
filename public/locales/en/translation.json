@@ -2,6 +2,13 @@
   "app": {
     "loading": "Loading..."
   },
+  "menuBar": {
+    "missingModsAlert": {
+      "title": "Missing Mods in Profile",
+      "descriptionPart1": "Could not fully load profile \"<strong>{loadingProfileName}</strong>\" because the following mods were not found:",
+      "descriptionPart2": "The profile was not loaded. Ensure all necessary mods are installed and try again."
+    }
+  },
   "modManager": {
     "disabledModsTitle": "Disabled Mods",
     "enabledModsTitle": "Enabled Mods",
@@ -41,8 +48,58 @@
     "modListRefreshedError": "Failed to refresh mod list: {error}",
     "modListRefreshCriticalError": "Critical error during mod list refresh: {errorMessage}"
   },
+  "profiles": {
+    "autoSaveSettingsTitle": "Auto-Save Settings",
+    "autoSaveLabel": "Enable profile auto-save",
+    "autoSaveDescription": "Automatically save changes to the active profile's mod configuration.",
+    "manageProfilesTitle": "Manage Profiles",
+    "manageProfilesDescription": "Create, rename, or delete your mod profiles.",
+    "createNewProfileTitle": "Create New Profile",
+    "newProfileNameLabel": "Profile Name",
+    "newProfileNamePlaceholder": "E.g. 'Main Gameplay', 'Graphics Mod Test'",
+    "newProfileDescriptionLabel": "Description (Optional)",
+    "newProfileDescriptionPlaceholder": "Short description of the profile",
+    "createButton": "Create Profile",
+    "importProfileTitle": "Import Profile",
+    "importButton": "Import Profile",
+    "existingProfiles": "Existing Profiles",
+    "noProfilesYet": "No profiles created yet.",
+    "noProfileSelected": "No Profile Selected",
+    "availableProfiles": "Available Profiles",
+    "noProfilesCreated": "No profiles created",
+    "manageProfilesAction": "Manage Profiles",
+    "deleteConfirmMessage": "Are you sure you want to delete the profile \"{{name}}\"? This action cannot be undone.",
+    "cannotDeleteDefault": "The Default profile cannot be deleted.",
+    "deleteButtonTooltip": "Delete profile",
+    "exportButtonTooltip": "Export profile",
+    "exportDialogTitle": "Save Profile As...",
+    "importDialogTitle": "Select Profile to Import",
+    "exportSuccessMessage": "Profile successfully exported to \"{{fileName}}\".",
+    "importSuccessMessage": "Profile \"{{name}}\" successfully imported.",
+    "errors": {
+      "emptyName": "Profile name cannot be empty.",
+      "creationFailed": "Profile creation failed.",
+      "deletionFailed": "Profile deletion failed.",
+      "renameFailed": "Profile rename failed.",
+      "emptyNameOnRename": "New profile name cannot be empty.",
+      "autoSaveToggleFailed": "Failed to change auto-save setting.",
+      "exportFailedGeneral": "Profile export failed.",
+      "exportWriteFailed": "Failed to write profile to file: {{error}}",
+      "exportFailed": "Profile export failed: {{error}}",
+      "importReadFailed": "Failed to read profile file: {{error}}",
+      "importParseFailed": "Failed to parse profile JSON: {{error}}",
+      "importServiceFailed": "Profile import failed: {{error}}",
+      "importFailedGeneral": "Profile import failed: {{error}}",
+      "loadFailed": "Error loading profile: {{error}}"
+    }
+  },
   "common": {
     "cancel": "Cancel",
-    "rename": "Rename"
+    "rename": "Rename",
+    "ok": "OK",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
   }
 }

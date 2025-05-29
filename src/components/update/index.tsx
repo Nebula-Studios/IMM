@@ -1,9 +1,17 @@
 import type { ProgressInfo } from 'electron-updater';
-import { useCallback, useEffect, useState } from 'react';
-import Modal from '@/components/update/Modal/index.tsx';
-import Progress from '@/components/update/Progress/index.tsx';
-import './update.css';
-import { Button } from '@/components/ui/button.tsx';
+import type { IpcRendererEvent } from 'electron';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
+import CustomModal from './Modal/index.tsx'; // Rinominato e percorso relativo
+import Progress from './Progress/index.tsx'; // Percorso relativo
+// import './update.css'; // Rimosso
+// Button non è più usato qui
+// import { Button } from '@/components/ui/button.tsx';
 
 // Define specific types for clarity if not already available globally
 interface VersionInfo {
@@ -17,7 +25,11 @@ interface ErrorType extends Error {
   // Add specific error properties if they exist
 }
 
-const Update = () => {
+export interface UpdateHandle {
+  triggerUpdateCheck: () => void;
+}
+
+const Update = forwardRef<UpdateHandle>((_props: {}, ref) => {
   const [checking, setChecking] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [versionInfo, setVersionInfo] = useState<VersionInfo>();
@@ -43,39 +55,62 @@ const Update = () => {
     if (window.electronAPI && window.electronAPI.checkUpdate) {
       try {
         const result = await window.electronAPI.checkUpdate();
-        setProgressInfo({ percent: 0 });
+        setProgressInfo({ percent: 0 }); 
         setChecking(false);
         setModalOpen(true);
-        // Assuming result structure based on original logic
-        // You might need to adjust this based on the actual structure of 'result'
         if (result?.error) {
           setUpdateAvailable(false);
           setUpdateError(result?.error as ErrorType);
+          setModalBtn({
+            okText: 'OK',
+            onOk: () => setModalOpen(false),
+            cancelText: undefined,
+            onCancel: undefined,
+          });
         } else if (result) {
-          // If no error, assume result itself is or contains version info
-          // This part needs to match how 'update-can-available' was triggered before
-          // For now, we'll manually call the handler if data is present
           onUpdateCanAvailable(null, result as VersionInfo);
+        } else {
+           setUpdateAvailable(false);
+           setVersionInfo(undefined); 
+           setModalBtn({
+            okText: 'OK',
+            onOk: () => setModalOpen(false),
+            cancelText: undefined,
+            onCancel: undefined,
+          });
         }
       } catch (e: any) {
         setChecking(false);
         setModalOpen(true);
         setUpdateAvailable(false);
         setUpdateError(e as ErrorType);
+        setModalBtn({
+          okText: 'OK',
+          onOk: () => setModalOpen(false),
+          cancelText: undefined,
+          onCancel: undefined,
+        });
       }
     } else {
       console.error('electronAPI.checkUpdate is not available');
       setChecking(false);
+      setUpdateError(new Error('Update check functionality is not available.'));
+      setModalBtn({
+        okText: 'OK',
+        onOk: () => setModalOpen(false),
+        cancelText: undefined,
+        onCancel: undefined,
+      });
+      setModalOpen(true);
     }
   };
 
   const onUpdateCanAvailable = useCallback(
-    (_event: Electron.IpcRendererEvent | null, arg1: VersionInfo) => {
+    (_event: IpcRendererEvent | null, arg1: VersionInfo) => {
       setVersionInfo(arg1);
       setUpdateError(undefined);
       if (arg1.update) {
-        setModalBtn((state) => ({
-          ...state,
+        setModalBtn({
           cancelText: 'Cancel',
           okText: 'Update',
           onOk: () => {
@@ -83,35 +118,50 @@ const Update = () => {
               window.electronAPI.startDownload();
             }
           },
-        }));
+          onCancel: () => setModalOpen(false),
+        });
         setUpdateAvailable(true);
       } else {
+        setModalBtn({
+          okText: 'OK',
+          onOk: () => setModalOpen(false),
+          cancelText: undefined, 
+          onCancel: undefined,
+        });
         setUpdateAvailable(false);
       }
+      setModalOpen(true); 
     },
     []
   );
 
   const onUpdateError = useCallback(
-    (_event: Electron.IpcRendererEvent | null, arg1: ErrorType) => {
+    (_event: IpcRendererEvent | null, arg1: ErrorType) => {
       setUpdateAvailable(false);
       setUpdateError(arg1);
+      setModalBtn({
+        okText: 'OK',
+        onOk: () => setModalOpen(false),
+        cancelText: undefined,
+        onCancel: undefined,
+      });
+      setModalOpen(true); 
     },
     []
   );
 
   const onDownloadProgress = useCallback(
-    (_event: Electron.IpcRendererEvent | null, arg1: ProgressInfo) => {
+    (_event: IpcRendererEvent | null, arg1: ProgressInfo) => {
       setProgressInfo(arg1);
+      setModalOpen(true); 
     },
     []
   );
 
   const onUpdateDownloaded = useCallback(
-    (_event: Electron.IpcRendererEvent | null, ...args: any[]) => {
+    (_event: IpcRendererEvent | null, ...args: any[]) => {
       setProgressInfo({ percent: 100 });
-      setModalBtn((state) => ({
-        ...state,
+      setModalBtn({
         cancelText: 'Later',
         okText: 'Install now',
         onOk: () => {
@@ -119,7 +169,9 @@ const Update = () => {
             window.electronAPI.quitAndInstall();
           }
         },
-      }));
+        onCancel: () => setModalOpen(false),
+      });
+      setModalOpen(true); 
     },
     []
   );
@@ -134,28 +186,28 @@ const Update = () => {
       unsubscribeUpdateCanAvailable = window.electronAPI.ipcOn(
         'update-can-available',
         onUpdateCanAvailable as (
-          event: Electron.IpcRendererEvent,
+          event: IpcRendererEvent,
           ...args: any[]
         ) => void
       );
       unsubscribeUpdateError = window.electronAPI.ipcOn(
         'update-error',
         onUpdateError as (
-          event: Electron.IpcRendererEvent,
+          event: IpcRendererEvent,
           ...args: any[]
         ) => void
       );
       unsubscribeDownloadProgress = window.electronAPI.ipcOn(
         'download-progress',
         onDownloadProgress as (
-          event: Electron.IpcRendererEvent,
+          event: IpcRendererEvent,
           ...args: any[]
         ) => void
       );
       unsubscribeUpdateDownloaded = window.electronAPI.ipcOn(
         'update-downloaded',
         onUpdateDownloaded as (
-          event: Electron.IpcRendererEvent,
+          event: IpcRendererEvent,
           ...args: any[]
         ) => void
       );
@@ -174,50 +226,79 @@ const Update = () => {
     onUpdateDownloaded,
   ]);
 
+  useEffect(() => {
+    if (!checking) { 
+        checkUpdate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
+
+  useImperativeHandle(ref, () => ({
+    triggerUpdateCheck: () => {
+      if (!checking) {
+        setModalOpen(true); 
+      }
+      checkUpdate();
+    },
+  }));
+
   return (
-    <>
-      <Modal
-        open={modalOpen}
-        cancelText={modalBtn?.cancelText}
-        okText={modalBtn?.okText}
-        onCancel={modalBtn?.onCancel}
-        onOk={modalBtn?.onOk}
-        footer={updateAvailable ? /* hide footer */ null : undefined}
-      >
-        <div className="modal-slot">
-          {updateError ? (
-            <div>
-              <p>Error downloading the latest version.</p>
-              <p>{updateError.message}</p>
+    <CustomModal
+      open={modalOpen}
+      cancelText={modalBtn?.cancelText}
+      okText={modalBtn?.okText}
+      onCancel={modalBtn?.onCancel}
+      onOk={modalBtn?.onOk}
+      footer={
+        updateAvailable ||
+        (progressInfo?.percent && progressInfo.percent > 0 && progressInfo.percent < 100) ||
+        updateError ||
+        (versionInfo && !checking && !updateError)
+          ? undefined // Lascia che CustomModal gestisca i pulsanti di default
+          : null // Nasconde il footer se nessuna delle condizioni sopra è vera
+      }
+      // Passiamo un titolo alla modale se necessario, altrimenti CustomModal non lo mostrerà
+      title={
+        updateError
+          ? 'Update Error'
+          : updateAvailable
+          ? 'Update Available'
+          : (versionInfo && !versionInfo.update && !checking)
+          ? 'Up to Date'
+          : 'Checking for Updates'
+      }
+    >
+      <div className="p-4 space-y-4">
+        {updateError ? (
+          <div className="text-center">
+            <p className="text-destructive font-semibold">Error checking for updates.</p>
+            <p className="text-sm text-muted-foreground">{updateError.message}</p>
+          </div>
+        ) : checking && (!progressInfo || progressInfo.percent === 0) && !updateAvailable && !versionInfo ? (
+          <div className="text-center text-muted-foreground py-4">
+            Checking for updates...
+          </div>
+        ) : updateAvailable ? (
+          <div className="space-y-2">
+            <div className="text-lg font-semibold">The latest version is: v{versionInfo?.newVersion}</div>
+            <div className="text-sm text-muted-foreground">
+              Current version: v{versionInfo?.version}
             </div>
-          ) : updateAvailable ? (
-            <div>
-              <div>The last version is: v{versionInfo?.newVersion}</div>
-              <div className="new-version__target">
-                v{versionInfo?.version} -&gt; v{versionInfo?.newVersion}
-              </div>
-              <div className="update__progress">
-                <div className="progress__title">Update progress:</div>
-                <div className="progress__bar">
-                  <Progress percent={progressInfo?.percent}></Progress>
-                </div>
-              </div>
+            <div className="mt-4">
+              <div className="text-sm font-medium mb-1">Update progress:</div>
+              <Progress percent={progressInfo?.percent}></Progress>
             </div>
-          ) : (
-            // Displaying versionInfo or a message if not updating and no error
-            <div className="can-not-available">
-              {versionInfo
-                ? `Current version: v${versionInfo.version}. No update available at the moment.`
-                : 'Checking for updates...'}
-            </div>
-          )}
-        </div>
-      </Modal>
-      <Button variant="outline" disabled={checking} onClick={checkUpdate}>
-        {checking ? 'Checking...' : 'Check update'}
-      </Button>
-    </>
+          </div>
+        ) : (
+          <div className="text-center text-muted-foreground py-4">
+            {versionInfo && !versionInfo.update && !checking
+              ? `Current version: v${versionInfo.version}. You are up-to-date.`
+              : 'Checking for updates...'}
+          </div>
+        )}
+      </div>
+    </CustomModal>
   );
-};
+});
 
 export default Update;

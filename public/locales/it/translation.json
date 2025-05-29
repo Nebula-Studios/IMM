@@ -2,6 +2,13 @@
   "app": {
     "loading": "Caricamento..."
   },
+  "menuBar": {
+    "missingModsAlert": {
+      "title": "Mod Mancanti nel Profilo",
+      "descriptionPart1": "Impossibile caricare completamente il profilo \"<strong>{loadingProfileName}</strong>\" perché i seguenti mod non sono stati trovati:",
+      "descriptionPart2": "Il profilo non è stato caricato. Assicurati che tutti i mod necessari siano installati e riprova."
+    }
+  },
   "modManager": {
     "disabledModsTitle": "Mod Disabilitati",
     "enabledModsTitle": "Mod Abilitati",
@@ -41,8 +48,58 @@
     "modListRefreshedError": "Impossibile aggiornare la lista mod: {error}",
     "modListRefreshCriticalError": "Errore critico durante l'aggiornamento della lista mod: {errorMessage}"
   },
+  "profiles": {
+    "autoSaveSettingsTitle": "Impostazioni Auto-Salvataggio",
+    "autoSaveLabel": "Abilita auto-salvataggio profili",
+    "autoSaveDescription": "Salva automaticamente le modifiche alla configurazione dei mod del profilo attivo.",
+    "manageProfilesTitle": "Gestisci Profili",
+    "manageProfilesDescription": "Crea, rinomina o elimina i tuoi profili di mod.",
+    "createNewProfileTitle": "Crea Nuovo Profilo",
+    "newProfileNameLabel": "Nome Profilo",
+    "newProfileNamePlaceholder": "Es. 'Gameplay Principale', 'Test Mod Grafici'",
+    "newProfileDescriptionLabel": "Descrizione (Opzionale)",
+    "newProfileDescriptionPlaceholder": "Breve descrizione del profilo",
+    "createButton": "Crea Profilo",
+    "importProfileTitle": "Importa Profilo",
+    "importButton": "Importa Profilo",
+    "existingProfiles": "Profili Esistenti",
+    "noProfilesYet": "Nessun profilo creato finora.",
+    "noProfileSelected": "Nessun Profilo Selezionato",
+    "availableProfiles": "Profili Disponibili",
+    "noProfilesCreated": "Nessun profilo creato",
+    "manageProfilesAction": "Gestisci Profili",
+    "deleteConfirmMessage": "Sei sicuro di voler eliminare il profilo \"{{name}}\"? Questa azione non può essere annullata.",
+    "cannotDeleteDefault": "Il profilo Default non può essere eliminato.",
+    "deleteButtonTooltip": "Elimina profilo",
+    "exportButtonTooltip": "Esporta profilo",
+    "exportDialogTitle": "Salva Profilo Come...",
+    "importDialogTitle": "Seleziona Profilo da Importare",
+    "exportSuccessMessage": "Profilo esportato con successo in \"{{fileName}}\".",
+    "importSuccessMessage": "Profilo \"{{name}}\" importato con successo.",
+    "errors": {
+      "emptyName": "Il nome del profilo non può essere vuoto.",
+      "creationFailed": "Creazione del profilo fallita.",
+      "deletionFailed": "Eliminazione del profilo fallita.",
+      "renameFailed": "Rinomina del profilo fallita.",
+      "emptyNameOnRename": "Il nuovo nome del profilo non può essere vuoto.",
+      "autoSaveToggleFailed": "Impossibile modificare l'impostazione di auto-salvataggio.",
+      "exportFailedGeneral": "Esportazione profilo fallita.",
+      "exportWriteFailed": "Impossibile scrivere il profilo su file: {{error}}",
+      "exportFailed": "Esportazione profilo fallita: {{error}}",
+      "importReadFailed": "Impossibile leggere il file del profilo: {{error}}",
+      "importParseFailed": "Impossibile analizzare il JSON del profilo: {{error}}",
+      "importServiceFailed": "Importazione profilo fallita: {{error}}",
+      "importFailedGeneral": "Importazione profilo fallita: {{error}}",
+      "loadFailed": "Errore durante il caricamento del profilo: {{error}}"
+    }
+  },
   "common": {
     "cancel": "Annulla",
-    "rename": "Rinomina"
+    "rename": "Rinomina",
+    "ok": "OK",
+    "save": "Salva",
+    "delete": "Elimina",
+    "edit": "Modifica",
+    "close": "Chiudi"
   }
 }

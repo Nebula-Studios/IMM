@@ -1,76 +1,84 @@
 import React, { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import './modal.css';
-import { Button } from '@/components/ui/button.tsx';
+// import { createPortal } from 'react-dom'; // createPortal non è più necessario con DialogPrimitive.Portal
+// import './modal.css'; // Rimosso
+import { Button } from '../../ui/button.tsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription, // Aggiunto se necessario per descrizioni, o si usa children direttamente
+  DialogClose, // Per il pulsante di chiusura standard
+} from '../../ui/dialog.tsx';
+import { X } from 'lucide-react'; // Icona per il pulsante di chiusura
 
-const ModalTemplate: React.FC<
-  React.PropsWithChildren<{
-    title?: ReactNode;
-    footer?: ReactNode;
-    cancelText?: string;
-    okText?: string;
-    onCancel?: () => void;
-    onOk?: () => void;
-    width?: number;
-  }>
-> = (props) => {
-  const {
-    title,
-    children,
-    footer,
-    cancelText = 'Cancel',
-    okText = 'OK',
-    onCancel,
-    onOk,
-    width = 530,
-  } = props;
+interface ModalProps {
+  open: boolean;
+  title?: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode; // Mantenuto per flessibilità, ma di solito si usano i bottoni nel DialogFooter
+  cancelText?: string;
+  okText?: string;
+  onCancel?: () => void;
+  onOk?: () => void;
+  // width non è più una prop, DialogContent ha una larghezza massima predefinita (max-w-lg)
+}
+
+const CustomModal: React.FC<ModalProps> = ({
+  open,
+  title,
+  children,
+  footer,
+  cancelText = 'Cancel',
+  okText = 'OK',
+  onCancel,
+  onOk,
+}) => {
+  if (!open) {
+    return null;
+  }
+
+  // Gestisce la chiusura sia dal pulsante X che dal pulsante Annulla
+  const handleClose = () => {
+    if (onCancel) {
+      onCancel();
+    }
+  };
 
   return (
-    <div className="update-modal">
-      <div className="update-modal__mask" />
-      <div className="update-modal__warp">
-        <div className="update-modal__content" style={{ width }}>
-          <div className="content__header">
-            <div className="content__header-text">{title}</div>
-            <span className="update-modal--close" onClick={onCancel}>
-              <svg
-                viewBox="0 0 1024 1024"
-                version="1.1"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M557.312 513.248l265.28-263.904c12.544-12.48 12.608-32.704 0.128-45.248-12.512-12.576-32.704-12.608-45.248-0.128l-265.344 263.936-263.04-263.84C236.64 191.584 216.384 191.52 203.84 204 191.328 216.48 191.296 236.736 203.776 249.28l262.976 263.776L201.6 776.8c-12.544 12.48-12.608 32.704-0.128 45.248 6.24 6.272 14.464 9.44 22.688 9.44 8.16 0 16.32-3.104 22.56-9.312l265.216-263.808 265.44 266.24c6.24 6.272 14.432 9.408 22.656 9.408 8.192 0 16.352-3.136 22.592-9.344 12.512-12.48 12.544-32.704 0.064-45.248L557.312 513.248z"
-                  p-id="2764"
-                  fill="currentColor"
-                ></path>
-              </svg>
-            </span>
-          </div>
-          <div className="content__body">{children}</div>
-          {typeof footer !== 'undefined' ? (
-            <div className="content__footer">
-              <Button onClick={onCancel} variant="outline">
+    <Dialog open={open} onOpenChange={(isOpen: boolean) => !isOpen && handleClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          {title && <DialogTitle>{title}</DialogTitle>}
+          {/* <DialogDescription>
+            Qui potrebbe andare una descrizione se necessaria.
+          </DialogDescription> */}
+        </DialogHeader>
+        
+        {children} {/* Contenuto principale della modale */}
+
+        {footer !== null && ( // Se footer è esplicitamente null, non mostrare il footer di default
+          <DialogFooter>
+            {onCancel && (
+              <Button variant="outline" onClick={handleClose}>
                 {cancelText}
               </Button>
-              <Button onClick={onOk} variant="default">
+            )}
+            {onOk && (
+              <Button variant="default" onClick={onOk}>
                 {okText}
               </Button>
-            </div>
-          ) : (
-            footer
-          )}
-        </div>
-      </div>
-    </div>
+            )}
+          </DialogFooter>
+        )}
+        {footer} {/* Permette di passare un footer completamente personalizzato se necessario */}
+        
+        {/* Il componente DialogContent di Shadcn/ui include già un pulsante di chiusura con icona X */}
+        {/* Non è necessario aggiungerne uno manualmente a meno di requisiti specifici */}
+      </DialogContent>
+    </Dialog>
   );
 };
 
-const Modal = (
-  props: Parameters<typeof ModalTemplate>[0] & { open: boolean }
-) => {
-  const { open, ...omit } = props;
-
-  return createPortal(open ? ModalTemplate(omit) : null, document.body);
-};
-
-export default Modal;
+export default CustomModal;

@@ -143,6 +143,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
     error?: string;
   }> => ipcRenderer.invoke('refresh-mod-list'),
 
+  // --- Profile Management IPC ---
+  getUserDataPath: (): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('get-user-data-path'),
+  getProfilePaths: (): Promise<{
+    success: boolean;
+    paths?: { profilesDir: string; profilesFilePath: string };
+    error?: string;
+  }> => ipcRenderer.invoke('get-profile-paths'),
+  profilesAccess: (
+    filePath: string
+  ): Promise<{ success: boolean; exists: boolean; error?: string }> =>
+    ipcRenderer.invoke('profiles-access', filePath),
+  profilesMkdir: (
+    dirPath: string
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('profiles-mkdir', dirPath),
+  profilesReadFile: (
+    filePath: string
+  ): Promise<{ success: boolean; content?: string; error?: string }> =>
+    ipcRenderer.invoke('profiles-read-file', filePath),
+  profilesWriteFile: (
+    filePath: string,
+    content: string
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('profiles-write-file', filePath, content),
+  // --- END Profile Management IPC ---
+
+  // --- Generic File Operations (Import/Export Profiles) ---
+  showSaveDialog: (options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> =>
+    ipcRenderer.invoke('show-save-dialog', options),
+  showOpenDialog: (options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> =>
+    ipcRenderer.invoke('show-open-dialog', options),
+  readFileContent: (filePath: string): Promise<{ success: boolean; content?: string; error?: string; code?: string }> =>
+    ipcRenderer.invoke('read-file-content', filePath),
+  writeFileContent: (filePath: string, content: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('write-file-content', filePath, content),
+  // --- END Generic File Operations ---
+
   // Generic IPC for other cases if needed, though specific APIs are preferred
   ipcOn: (
     channel: string,

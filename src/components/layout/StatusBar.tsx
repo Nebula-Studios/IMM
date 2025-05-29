@@ -1,13 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, Info, CheckCircle } from 'lucide-react';
+import { ExternalLink, Info, CheckCircle, HelpCircle, RefreshCw } from 'lucide-react'; // Aggiunta RefreshCw
 import { cn } from '@/lib/utils.ts'; // Importa cn
+import { Button } from '../ui/button.tsx';
 
 interface StatusBarProps {
   className?: string;
+  onTriggerUpdateCheck?: () => void; // Aggiunta la prop per il controllo manuale
 }
 
-const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ className, onTriggerUpdateCheck }) => {
   const { t } = useTranslation();
   // Informazioni sugli aggiornamenti (potrebbero venire dallo stato dell'app)
   const updateStatusMessage = t('statusBar.noUpdates'); // Esempio
@@ -40,6 +42,10 @@ const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
     statusTextColor = 'text-green-400';
   }
 
+  function handleOpenLink(arg0: string): void {
+    window.electronAPI.openExternalLink(arg0);
+  }
+
   return (
     <footer
       className={cn(
@@ -51,6 +57,28 @@ const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
         {statusIcon}
         <span>{updateStatusMessage}</span>
       </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onTriggerUpdateCheck}
+        title={t('statusBar.checkForUpdates', 'Check for Updates')}
+      >
+        <RefreshCw className="h-4 w-4 mr-1" />
+        {t('statusBar.checkForUpdatesButton', 'Check for Updates')}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() =>
+          handleOpenLink(
+            'https://github.com/Nebula-Studios/IMM/issues/new/choose'
+          )
+        }
+        title="Report a Bug / Request a Feature"
+      >
+        <HelpCircle className="h-4 w-4 mr-1" />
+        Report Bug / Request a Feature
+      </Button>
       <a
         href={nexusModsLink} // Manteniamo href per semantica e accessibilità
         onClick={handleNexusLinkClick}

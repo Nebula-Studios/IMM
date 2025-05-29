@@ -1,5 +1,6 @@
-import React, { useState, useEffect, Suspense } from 'react'; // Aggiunto Suspense
+import React, { useState, useEffect, Suspense, useRef } from 'react'; // Aggiunto Suspense e useRef
 import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
+import Update, { UpdateHandle } from '@/components/update/index.tsx'; // Import per il componente Update, specificando index.tsx
 // import MenuBar from '@/components/layout/MenuBar.tsx'; // Rimosso da qui
 // StatusBar sarà importata e usata in AppContent
 import AppContent from '@/components/layout/AppContent.tsx';
@@ -20,6 +21,11 @@ export default function App() {
 
   useTheme(); // Chiamata a useTheme per inizializzare e applicare il tema
   const { t } = useTranslation(); // Hook per le traduzioni
+  const updateRef = useRef<UpdateHandle>(null);
+
+  const handleTriggerUpdateCheck = () => {
+    updateRef.current?.triggerUpdateCheck();
+  };
 
   const [showSettingsPage, setShowSettingsPage] = useState(false);
 
@@ -52,8 +58,10 @@ export default function App() {
         onHookReloadPath={reloadPath}
         showSettingsPage={showSettingsPage} // Passiamo lo stato di visibilità della pagina impostazioni
         onToggleSettingsPage={handleToggleSettingsPage} // Passiamo la callback per cambiare questo stato
+        onTriggerUpdateCheck={handleTriggerUpdateCheck} // Passiamo la callback per il controllo manuale degli aggiornamenti
         // La nuova funzione onRefreshMods verrà gestita all'interno di AppContent o ModManagerLayout
       />
+      <Update ref={updateRef} /> {/* Componente Update aggiunto qui */}
       {/* StatusBar rimossa da qui, Toaster rimane */}
       <Toaster position="bottom-right" />
       </div>
