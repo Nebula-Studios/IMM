@@ -9,5 +9,12 @@
       ],
       "url": "https://json.schemastore.org/electron-builder"
     }
+  ],
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/build.yml"
+  ],
+  "i18n-ally.localesPaths": [
+    "public/locales",
+    "release/1.0.0/win-unpacked/locales"
   ]
 }

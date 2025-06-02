@@ -1,146 +1,244 @@
-# Piano di Sviluppo InZOI Mod Manager
+# Piano di Sviluppo Proposto per Estendere `inzoimodmanager`
 
-Questo documento traccia il piano di sviluppo per l'applicazione InZOI Mod Manager. Verrà aggiornato man mano che le funzionalità vengono implementate.
+## 1. Obiettivo Generale
 
-## Fase 1: Setup Iniziale e Funzionalità Core
+Estendere `inzoimodmanager` per raggiungere la parità di funzionalità con il plugin Python [`inzoi.py`](inzoi.py:1), supportando l'installazione e la gestione di vari tipi di mod, inclusi file `.pak` (con i loro associati `.ucas`/`.utoc`), DLL (come `dwmapi.dll`, `dsound.dll`), e file di contenuto (`.glb`, `motion.dat`, `site.dat`, `appearance.dat`) nelle loro rispettive directory di installazione.
 
-- [x] **1.1. Setup Ambiente Electron e Struttura Progetto:**
+## 2. Analisi Tecnica e Strategia
 
-  - [x] Verificare che la struttura base di Electron (main, preload, renderer) sia correttamente configurata.
-  - [x] Impostare le utility di base (logging, gestione errori).
-  - [x] Integrare TypeScript e linter/formatter come da `clean-code-guidelines.mdc` (principi generali).
+### 2.1. Tipi di Mod e Percorsi di Installazione
 
-  - _Priorità: Altissima_
-  - _Dipendenze: Nessuna_
+Basandoci su [`inzoi.py`](inzoi.py:1) e l'analisi corrente:
 
-- [x] **1.2. Primo Avvio e Selezione Cartella di Gioco:**
+*   **Bundle `.pak`**:
+    *   File: `.pak`, `.ucas`, `.utoc`
+    *   Percorso di installazione: `[CartellaGioco]/InZOI/Content/Paks/~mods/`
+    *   Logica attuale: Già parzialmente supportata.
+*   **DLL (DXGI/ReShade/ModEnabler)**:
+    *   File: `dwmapi.dll` (per ReShade), `dsound.dll` (per ModEnabler), e file di configurazione associati (es. `ReShade.ini`, `ReShadePreset.ini`).
+    *   Percorso di installazione: `[CartellaGioco]/InZOI/Binaries/Win64/`
+*   **File di Contenuto Specifici**:
+    *   `.glb` (Modelli 3D): `Documents/InZOI/User/Mods/glb/`
+    *   `motion.dat` (Animazioni): `Documents/InZOI/User/Mods/motion/`
+    *   `site.dat` (Dati Sito): `Documents/InZOI/User/Mods/site/`
+    *   `appearance.dat` (Aspetto): `Documents/InZOI/User/Mods/appearance/`
 
-  - [x] Implementata la logica per richiedere all'utente di selezionare la cartella di gioco di InZOI al primo avvio (tramite modale `GameFolderSetup`).
-  - [x] Salvataggio del percorso persistente tramite `electron-store`.
-  - [x] Aggiunto controllo per verificare che la cartella selezionata si chiami "inzoi" (case-insensitive).
-  - [x] Implementata funzionalità di sviluppo per resettare la cartella salvata.
+### 2.2. Strategia di Attivazione Mod: Copia File (Confermata)
 
-  - _Priorità: Altissima_
-  - _Dipendenze: Fase 1.1_
+Continueremo ad utilizzare la **copia dei file** invece dei symlink. Sebbene i symlink offrano vantaggi teorici, la loro gestione su Windows, specialmente per quanto riguarda i permessi utente necessari per crearli (spesso richiedono privilegi amministrativi), introduce una complessità e potenziali problemi per l'utente finale che superano i benefici in questo contesto. La copia dei file è più robusta e meno soggetta a problemi di permessi.
 
-- [x] **1.3. Configurazione Supporto Mod (InZOI Mod Enabler):**
+### 2.3. Area di Staging
 
-  - [x] Ricercare informazioni su "InZOI Mod Enabler di FrancisLouis" per capire quali file sono necessari e come installarli.
-  - [x] Implementare la logica per verificare se i file di supporto sono presenti.
-  - [x] Se non presenti, offrire all'utente di installarli (potrebbe richiedere il download e la copia di file specifici nella cartella di gioco).
+Manterremo l'uso dell'area di staging (`inzoi_mod_manager_files/staged_mods` nella cartella dati utente) per processare i file prima dell'attivazione. Questo permette una gestione più pulita e la possibilità di validare i mod prima di spostarli nelle directory di gioco.
 
-  - _Priorità: Altissima_
-  - _Dipendenze: Fase 1.2_
+## 3. Modifiche Architetturali e Strutture Dati
 
-- [x] **1.4. Interfaccia Utente di Base (UI):**
+### 3.1. Estensione Strutture Dati Esistenti
 
-  - [x] Progettare e implementare la UI principale con le due colonne: "Mod Disabilitati" (sinistra) e "Mod Abilitati" (destra).
-  - [x] Creare componenti UI riutilizzabili per visualizzare i mod (nome, stato).
-  - [x] Implementare drag and drop per aggiungere mod.
+Le interfacce `ModItem` (nel renderer) e `ModItemForStore` (nel processo main, definita in [`electron/main/index.ts:18`](electron/main/index.ts:18)) necessitano di essere estese per accomodare i nuovi tipi di mod e la gestione dei file associati.
 
-  - _Priorità: Alta_
-  - _Dipendenze: Fase 1.1_
+```typescript
+// Proposta per electron/main/index.ts (e struttura simile per il renderer)
 
-- [ ] **1.5. Aggiunta Mod (File PAK):**
+// Enum per i tipi di mod
+enum ModType {
+  PAK_BUNDLE = 'pak_bundle', // .pak, .ucas, .utoc
+  DLL_DXGI = 'dll_dxgi',     // es. dwmapi.dll per ReShade
+  DLL_DSOUND = 'dll_dsound', // es. dsound.dll per ModEnabler
+  CONTENT_GLB = 'content_glb',
+  CONTENT_MOTION = 'content_motion',
+  CONTENT_SITE = 'content_site',
+  CONTENT_APPEARANCE = 'content_appearance',
+  // ... altri tipi se necessario
+  UNKNOWN = 'unknown'
+}
 
-  - [x] Implementare la logica per selezionare file `.pak` tramite il drag & drop.
-  - [x] Logica per copiare/spostare i file `.pak` in una cartella gestita dall'applicazione (es. una sottocartella `mods_staging` o simile).
-  - [x] Rilevamento e gestione automatica dei file `.ucas` e `.utoc` associati al `.pak`.
-  - [x] Visualizzare i mod aggiunti nella colonna "Mod Disabilitati".
+interface ManagedFile {
+  sourceStagePath: string; // Percorso completo del file nell'area di staging
+  targetInstallPath: string; // Percorso completo di installazione target
+  fileName: string;          // Nome del file (es. "modxyz.pak", "dwmapi.dll")
+}
 
-  - _Priorità: Alta_
-  - _Dipendenze: Fase 1.4_
+interface ModItemForStore {
+  id: string; // UUID
+  name: string; // Nome del mod (es. nome del file .zip o directory)
+  type: 'pak' | 'zip' | 'folder'; // Tipo di archivio originale, potrebbe diventare obsoleto o integrato in modType
+  modType: ModType; // NUOVO: Tipo di mod specifico
+  pakFiles?: string[]; // File .pak associati (per PAK_BUNDLE)
+  ucasFiles?: string[]; // File .ucas associati (per PAK_BUNDLE)
+  utocFiles?: string[]; // File .utoc associati (per PAK_BUNDLE)
+  otherFiles?: string[]; // Altri file nel bundle originale
+  managedFiles: ManagedFile[]; // NUOVO: Elenco dei file gestiti per questo mod
+  isEnabled: boolean;
+  conflicts?: string[];
+  order?: number; // Rilevante principalmente per PAK_BUNDLE
+  originalPath?: string; // Percorso originale del file droppato
+  size: number; // Dimensione totale del mod
+  dateAdded: string; // Data di aggiunta
+  // Aggiungere altri campi se necessario, es. versione, autore, descrizione
+}
+```
 
-- [x] **1.6. Abilitazione/Disabilitazione Mod:**
+### 3.2. Diagramma di Flusso Proposto (Mermaid)
 
-  - [x] Implementare la logica per spostare un mod tra la colonna "Disabilitati" e "Abilitati" (drag & drop e/o pulsante).
-  - [x] Quando un mod viene abilitato:
+```mermaid
+graph TD
+    A[Utente trascina file/cartella Mod] --> B{Identifica Tipo Mod};
 
-    - [x] Spostare/copiare il file `.pak` (e i suoi `.ucas`/`.utoc`) in una sottocartella numerata (es. `000_NomeMod/NomeMod.pak`) nella cartella dei mod del gioco (`~mods`). - [x] La numerazione si applica alla sottocartella per l'ordine di caricamento.
+    subgraph Processo Main (`electron/main/index.ts`)
+        B -- PAK, UCAS, UTOC --> C[Processa come PAK_BUNDLE];
+        B -- dwmapi.dll, ReShade.ini --> D[Processa come DLL_DXGI];
+        B -- dsound.dll, ModEnabler.ini --> E[Processa come DLL_DSOUND];
+        B -- *.glb --> F[Processa come CONTENT_GLB];
+        B -- motion.dat --> G[Processa come CONTENT_MOTION];
+        B -- site.dat --> H[Processa come CONTENT_SITE];
+        B -- appearance.dat --> I[Processa come CONTENT_APPEARANCE];
+        B -- Altro/Sconosciuto --> J[Marca come UNKNOWN/Errore];
 
-  - [x] Quando un mod viene disabilitato:
+        C --> K[Copia in Staging & Crea `ModItemForStore` con `modType: PAK_BUNDLE`];
+        D --> K[Copia in Staging & Crea `ModItemForStore` con `modType: DLL_DXGI`];
+        E --> K[Copia in Staging & Crea `ModItemForStore` con `modType: DLL_DSOUND`];
+        F --> K[Copia in Staging & Crea `ModItemForStore` con `modType: CONTENT_GLB`];
+        G --> K[Copia in Staging & Crea `ModItemForStore` con `modType: CONTENT_MOTION`];
+        H --> K[Copia in Staging & Crea `ModItemForStore` con `modType: CONTENT_SITE`];
+        I --> K[Copia in Staging & Crea `ModItemForStore` con `modType: CONTENT_APPEARANCE`];
 
-    - [x] Rimuovere il file `.pak` (e associati) dalla cartella dei mod del gioco.
+        K --> L[Salva `ModItemForStore` in `electron-store`];
+        L --> M[Renderer riceve aggiornamento lista Mod];
 
-  - _Priorità: Alta_
-  - _Dipendenze: Fase 1.5_
+        M -- Utente Abilita Mod --> N{Recupera `ModItemForStore`};
+        N --> O{Determina `targetInstallPath` da `modType` e `ManagedFile`};
+        O --> P[Copia file da Staging a `targetInstallPath`];
+        P --> Q[Aggiorna stato `isEnabled` in `electron-store`];
+        Q --> R[Renderer aggiorna UI];
 
-## Fase 2: Funzionalità Avanzate e Miglioramenti
+        M -- Utente Disabilita Mod --> S{Recupera `ModItemForStore`};
+        S --> T{Determina `targetInstallPath` da `modType` e `ManagedFile`};
+        T --> U[Rimuovi file da `targetInstallPath`];
+        U --> Q;
+    end
 
-- [x] **2.1. Gestione Ordine di Caricamento:**
+    J --> M;
+```
 
-  - [x] Implementare l'interfaccia per l'icona "Ordina" (Sort).
-  - [x] Permettere all'utente di riordinare i mod nella colonna "Abilitati".
-  - [x] Aggiornare la numerazione dei file mod nella cartella di gioco in base al nuovo ordine.
+## 4. Modifiche agli IPC Handler Esistenti (`electron/main/index.ts`)
 
-  - _Priorità: Medio-Alta_
-  - _Dipendenze: Fase 1.6_
+### 4.1. `handle-process-dropped-mods` (attualmente `process-dropped-mods` in [`electron/main/index.ts:520`](electron/main/index.ts:520))
 
-- [x] **2.2. Supporto Archivi (ZIP, RAR, 7z):**
+*   **Logica Attuale**: Estrae file `.pak`, `.ucas`, `.utoc` da zip/cartelle e li copia nell'area di staging.
+*   **Modifiche Necessarie**:
+    1.  **Identificazione del Tipo di Mod**: Analizzare i file contenuti (non solo le estensioni, ma anche i nomi specifici come `dwmapi.dll`, `motion.dat`).
+    2.  **Creazione `ManagedFile[]`**: Per ogni file rilevante, popolare l'array `managedFiles` con `sourceStagePath` (nell'area di staging), `targetInstallPath` (determinato dal `modType`), e `fileName`.
+    3.  **Popolamento `modType`**: Impostare il campo `modType` corretto nell'oggetto `ModItemForStore`.
+    4.  Gestire la copia di *tutti* i file rilevanti del mod nell'area di staging, non solo i `.pak`.
+    5.  Se un archivio contiene tipi misti che non dovrebbero stare insieme (es. un `.pak` e un `dwmapi.dll`), decidere una strategia: creare mod separati, avvisare l'utente, o rifiutare. Per ora, si potrebbe dare priorità o gestire il tipo "principale" e loggare gli altri.
 
-  - [x] Implementare la logica per gestire l'aggiunta di file `.zip`, `.rar`, `.7z`.
-  - [x] Estrarre il contenuto dell'archivio (che dovrebbe contenere file `.pak` e potenzialmente `.ucas`/`.utoc`).
-  - [x] Processare i file estratti come nella Fase 1.5.
+### 4.2. `handle-enable-mod` (attualmente `enable-mod` in [`electron/main/index.ts:1077`](electron/main/index.ts:1077))
 
-  - _Priorità: Media_
-  - _Dipendenze: Fase 1.5_
+*   **Logica Attuale**: Copia file `.pak`, `.ucas`, `.utoc` da staging a `~mods`.
+*   **Modifiche Necessarie**:
+    1.  Leggere `modType` e `managedFiles` da `ModItemForStore`.
+    2.  Iterare su `managedFiles`. Per ogni file:
+        *   Copiare il file da `file.sourceStagePath` a `file.targetInstallPath`.
+        *   Assicurarsi che le directory di destinazione esistano (es. `InZOI/Binaries/Win64/`, `Documents/InZOI/User/Mods/glb/`), creandole se necessario (`fs.mkdirSync(path, { recursive: true })`).
 
-- [ ] **2.3. Rilevamento Automatico dei Mod Esistenti:**
+### 4.3. `handle-disable-mod` (attualmente `disable-mod` in [`electron/main/index.ts:1237`](electron/main/index.ts:1237))
 
-  - [x] All'avvio (dopo la selezione della cartella), scansionare la cartella dei mod del gioco per identificare mod già presenti.
-  - [ ] Cercare di associare questi mod a quelli conosciuti dall'applicazione o aggiungerli come nuovi mod.
+*   **Logica Attuale**: Rimuove file `.pak`, `.ucas`, `.utoc` da `~mods`.
+*   **Modifiche Necessarie**:
+    1.  Leggere `modType` e `managedFiles` da `ModItemForStore`.
+    2.  Iterare su `managedFiles`. Per ogni file:
+        *   Rimuovere il file da `file.targetInstallPath`.
+        *   Opzionale: gestire la rimozione di directory vuote create dal mod manager.
 
-  - _Priorità: Media_
-  - _Dipendenze: Fase 1.2, Fase 1.6_
+### 4.4. `handle-scan-mods` (attualmente `scanDirectoryForPaks` in [`electron/main/index.ts:1665`](electron/main/index.ts:1665), da rinominare)
 
-- [x] **2.4. Funzionalità Aggiuntive (Come da "Consigli e Trucchi"):**
+*   **Logica Attuale**: Scansiona `~mods` per file `.pak` e li confronta con `electron-store`.
+*   **Modifiche Necessarie (Significative)**:
+    1.  **Rinominare**: In `scanFileSystemForMods` o simile.
+    2.  **Scansione Multi-Path**: Deve scansionare *tutti* i percorsi di installazione dei mod:
+        *   `[CartellaGioco]/InZOI/Content/Paks/~mods/`
+        *   `[CartellaGioco]/InZOI/Binaries/Win64/`
+        *   `Documents/InZOI/User/Mods/glb/`
+        *   `Documents/InZOI/User/Mods/motion/`
+        *   `Documents/InZOI/User/Mods/site/`
+        *   `Documents/InZOI/User/Mods/appearance/`
+    3.  **Identificazione Mod**: Per i file trovati, tentare di associarli a `ModItemForStore` esistenti. Questo è complesso perché un file (es. `dwmapi.dll`) potrebbe non avere un nome univoco che lo leghi direttamente a un "mod" come inteso dall'utente (es. "Super ReShade Preset").
+        *   Una strategia potrebbe essere quella di basarsi sui `managedFiles` registrati in `electron-store`. Se un file in `Win64` corrisponde a un `managedFile` di un `ModItemForStore` di tipo `DLL_DXGI`, allora quel mod è considerato "trovato".
+    4.  **Sincronizzazione**: Aggiornare lo stato `isEnabled` dei mod in `electron-store` in base ai file trovati/mancanti.
 
-  - [x] **Rinominare Mod:** Implementare il click destro per rinominare un mod.
-  - [x] **Pulsante Aggiorna:** Implementare un pulsante per forzare una nuova scansione della cartella dei mod.
-  - [x] **Opzioni Tema:** Implementare un selettore per tema chiaro/scuro.
+### 4.5. `handle-synchronize-mod-states` (attualmente `synchronizeModStatesLogic` in [`electron/main/index.ts:1886`](electron/main/index.ts:1886))
 
-  - _Priorità: Medio-Bassa_
-  - _Dipendenze: Fase 1.4, Fase 1.6_
+*   **Logica Attuale**: Abilita/disabilita i mod `.pak` per corrispondere allo stato in `electron-store`.
+*   **Modifiche Necessarie**:
+    1.  Deve utilizzare la logica aggiornata di `handle-enable-mod` e `handle-disable-mod` che tiene conto di `modType` e `managedFiles` per operare sui percorsi corretti.
 
-- [ ] **2.5. Download Dinamico Mod Enabler (Opzionale):**
+### 4.6. `handle-update-mod-order` (attualmente `update-mod-order` in [`electron/main/index.ts:2185`](electron/main/index.ts:2185))
 
-  - [ ] Valutare e implementare il download automatico/aggiornamento dell'InZOI Mod Enabler tramite API di Nexus Mods.
-  - [ ] Gestire autenticazione API (chiave utente o registrazione app).
-  - [ ] Implementare logica di download ed estrazione.
+*   **Logica Attuale**: Gestisce l'ordine dei file `.pak` in `~mods` (rinominandoli).
+*   **Considerazioni**:
+    1.  L'ordinamento è primariamente rilevante per i mod `.pak` a causa del modo in cui il gioco li carica.
+    2.  Per altri tipi di mod (DLL, file di contenuto), l'ordine di caricamento è generalmente non applicabile o gestito diversamente (es. un solo `dwmapi.dll` può essere attivo).
+    3.  Questa funzione potrebbe necessitare di essere condizionata per operare solo su mod di tipo `PAK_BUNDLE` o la UI dovrebbe prevenire tentativi di ordinare mod non ordinabili.
 
-  - _Priorità: Media (da valutare post Fase 1)_
-  - _Dipendenze: Fase 1.3, Connessione Internet_
+## 5. Nuovi IPC Handler
 
-## Fase 3: Finalizzazione e Distribuzione
+### 5.1. `handle-validate-mod` (Nuovo)
 
-- [x] **3.1. Localizzazione:**
+*   **Scopo**: Fornire un feedback all'utente sulla validità o sul tipo di un mod prima o dopo l'aggiunta.
+*   **Logica**:
+    1.  Prende un `modId` o un set di file.
+    2.  Esegue la stessa logica di identificazione di `handle-process-dropped-mods` ma senza salvare/modificare lo stato.
+    3.  Restituisce il `modType` identificato, i `managedFiles` proposti, e potenziali avvisi (es. "Questo DLL sovrascriverà un file di gioco core" - anche se per ora ci limitiamo a gestire i percorsi definiti).
 
-  - [x] Predisporre l'app per la localizzazione (es. usando `i18next`).
-  - [x] Aggiungere le traduzioni per Inglese e Italiano.
+## 6. Modifiche al Frontend (React/TypeScript)
 
-  - _Priorità: Media_
-  - _Dipendenze: UI completata_
+*   **`ModDropzone.tsx` ([`src/components/mod-management/ModDropzone.tsx`](src/components/mod-management/ModDropzone.tsx:1))**:
+    *   Continuerà a chiamare `window.electronAPI.processDroppedMods`.
+*   **`ModManagerLayout.tsx` ([`src/components/layout/ModManagerLayout.tsx`](src/components/layout/ModManagerLayout.tsx:1)) e componenti figli (`ModList`, `ModItemCard`):**
+    *   Dovranno renderizzare correttamente i mod in base al nuovo `modType` e `managedFiles`.
+    *   Visualizzare icone o etichette diverse per tipi di mod diversi.
+    *   Le azioni (abilita/disabilita) chiameranno gli stessi IPC handler, ma il backend gestirà la logica specifica.
+    *   La funzionalità di ordinamento dovrebbe essere disponibile/visibile solo per i mod `PAK_BUNDLE`.
+*   **Interfacce Frontend (`StagedModInfo`, `ModItem` etc. in `src/types/index.ts` o simili):**
+    *   Dovranno rispecchiare le modifiche a `ModItemForStore`, includendo `modType` e `managedFiles`.
+*   **`profileService.ts` ([`src/services/profileService.ts`](src/services/profileService.ts:1))**:
+    *   Le modifiche principali sono nel backend; questo servizio dovrebbe continuare a funzionare se le firme degli IPC handler che chiama rimangono compatibili o vengono aggiornate di conseguenza.
 
-- [ ] **3.2. Test Approfonditi:**
+## 7. Gestione dei Percorsi Utente e di Gioco
 
-  - [ ] Testare tutte le funzionalità su diverse configurazioni.
-  - [ ] Testare con vari mod e scenari di conflitto.
+*   **Configurazione Iniziale**: L'applicazione necessita di conoscere il percorso della cartella di installazione di InZOI e, implicitamente, la cartella `Documents` dell'utente.
+    *   Attualmente, sembra che alcuni percorsi siano hardcoded o derivati. Sarà importante renderli configurabili o rilevarli in modo affidabile. [`electron/main/index.ts`](electron/main/index.ts:1) usa `settingsStore.get('gamePath')`.
+    *   Il percorso `Documents/InZOI/User/Mods/` è standard, ma `app.getPath('documents')` di Electron può essere usato per trovarlo dinamicamente.
 
-  - _Priorità: Alta_
-  - _Dipendenze: Tutte le fasi precedenti_
+## 8. Fasi di Sviluppo Suggerite
 
-- [ ] **3.3. Build e Packaging:**
+1.  **Fase 1: Backend - Strutture Dati e Identificazione Mod**
+    *   Definire e implementare `ModType` enum e aggiornare `ModItemForStore` con `modType` e `managedFiles`.
+    *   Modificare `handle-process-dropped-mods` per identificare correttamente i tipi di mod da [`inzoi.py`](inzoi.py:1) (DLLs, .glb, .dat files) e popolare le nuove strutture dati. In questa fase, la copia in staging è sufficiente.
+    *   Testare rigorosamente l'identificazione e la creazione di `ModItemForStore`.
+2.  **Fase 2: Backend - Abilitazione/Disabilitazione Mod**
+    *   Modificare `handle-enable-mod` e `handle-disable-mod` per utilizzare `modType` e `managedFiles` per copiare/rimuovere file dai percorsi di installazione corretti.
+    *   Implementare la creazione dinamica delle directory di destinazione.
+    *   Testare l'attivazione/disattivazione per ogni tipo di mod supportato.
+3.  **Fase 3: Backend - Scansione e Sincronizzazione**
+    *   Riscrivere `scanDirectoryForPaks` in `scanFileSystemForMods` per scansionare tutti i percorsi rilevanti.
+    *   Implementare la logica di associazione dei file trovati ai `ModItemForStore`.
+    *   Aggiornare `synchronizeModStatesLogic` per funzionare con tutti i tipi di mod.
+4.  **Fase 4: Frontend - Visualizzazione e Interazione**
+    *   Aggiornare le interfacce TypeScript del frontend.
+    *   Modificare i componenti React per visualizzare informazioni sui nuovi tipi di mod.
+    *   Assicurarsi che le azioni utente (abilita, disabilita, ordina) funzionino correttamente e che l'ordinamento sia condizionale.
+5.  **Fase 5: Test End-to-End e Rifinitura**
+    *   Testare l'intero flusso per vari scenari di mod.
+    *   Aggiungere gestione degli errori e feedback utente migliorati.
+    *   Considerare il nuovo IPC handler `handle-validate-mod`.
 
-  - [ ] Configurare `electron-builder` per creare eseguibili.
-  - [ ] Creare icone e metadati per l'applicazione.
+## 9. Considerazioni Aggiuntive
 
-  - _Priorità: Alta_
-  - _Dipendenze: Fase 3.2_
+*   **Installazione di ReShade/ModEnabler**: Il piano attuale si concentra sulla gestione dei file *una volta che l'utente li fornisce*. L'installazione automatica di ReShade o ModEnabler se non presenti è una funzionalità separata e più complessa (richiederebbe il download, l'esecuzione di installer, o la gestione di versioni). Può essere considerata per una fase successiva.
+*   **"Virtual Mods"**: Il concetto di "virtual mod" di Mod Organizer 2 (che usa un file system virtuale) è significativamente più complesso e probabilmente fuori scopo per questa fase di estensione, data la scelta di usare la copia diretta dei file. Il sistema `managedFiles` è un passo verso una gestione più granulare, ma non una virtualizzazione completa.
+*   **Dipendenze Esterne**: Assicurarsi che `electron-store` e altre dipendenze siano aggiornate.
+*   **Logging**: Migliorare il logging nel processo main per facilitare il debug.
 
-## Considerazioni Generali (da `clean-code-guidelines.mdc`)
-
-- [ ] Scrivere JSDoc per funzioni esportate e componenti React.
-- [ ] Seguire convenzioni di nomenclatura: `camelCase` per funzioni/variabili, `PascalCase` per componenti/classi.
-- [ ] Usare Conventional Commits per i messaggi di commit.
-- [ ] Applicare i principi DRY (Don't Repeat Yourself), KISS (Keep It Simple, Stupid), e SRP (Single Responsibility Principle).
-- [ ] Definire tipi TypeScript chiari per i dati dei mod, configurazioni, ecc.
+Questo piano fornisce una roadmap dettagliata. Ogni fase richiederà un'attenta implementazione e test.

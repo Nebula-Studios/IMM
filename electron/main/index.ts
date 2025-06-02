@@ -1113,7 +1113,6 @@ ipcMain.handle(
     }
 
     try {
-      // Determina se questo è un mod virtuale (esiste già nella directory ~mods)
       const sourceModDirectory = nodePath.dirname(modStagingPakPath);
       const isVirtualMod = sourceModDirectory.startsWith(gameModsPath);
 
@@ -1123,41 +1122,42 @@ ipcMain.handle(
       );
 
       if (isVirtualMod) {
-        // Per i mod virtuali, dobbiamo prima copiarli nello staging
+        // Per i mod virtuali, dobbiamo prima copiarli nello staging se necessario
         const stagingPath = getCurrentStagingPath();
         const stagingModDirectory = nodePath.join(stagingPath, modName);
 
         log.info(
-          `[Main ENABLE_MOD] Virtual mod detected. Copying to staging: "${stagingModDirectory}"`
+          `[Main ENABLE_MOD] Virtual mod detected. Ensuring it's in staging: "${stagingModDirectory}"`
         );
 
-        // Assicurati che la directory di staging esista
         if (!fs.existsSync(stagingPath)) {
           await fsPromises.mkdir(stagingPath, { recursive: true });
           log.info(`[Main] Created staging directory: "${stagingPath}"`);
         }
 
-        // Copia dalla directory ~mods allo staging se non esiste già
         if (!fs.existsSync(stagingModDirectory)) {
+          // sourceModDirectory per un mod virtuale è la sua cartella NNN_NomeMod in ~mods
           await copyDirRecursive(sourceModDirectory, stagingModDirectory);
           log.info(
             `[Main ENABLE_MOD] Copied virtual mod from "${sourceModDirectory}" to staging "${stagingModDirectory}"`
           );
         }
-
-        // Il mod è già attivo nella directory ~mods, quindi restituisci semplicemente il path esistente
+        // Per i mod virtuali, la loro "attivazione" è già avvenuta (sono in ~mods).
+        // Il loro activePath è la cartella NNN_NomeMod.
+        // Questa funzione potrebbe essere chiamata per assicurarsi che siano nello store come abilitati.
+        // Restituiamo il percorso della loro cartella in ~mods.
         return { success: true, newPath: sourceModDirectory };
       }
 
-      // Logica esistente per i mod normali dallo staging
+      // NUOVA LOGICA per mod normali (dallo staging):
       const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
       let maxIndex = -1;
       for (const item of itemsInGameModsDir) {
         const itemPath = nodePath.join(gameModsPath, item);
         try {
-          // Assicurati che sia una directory prima di tentare di matchare il nome
-          if (fs.lstatSync(itemPath).isDirectory()) {
-            const match = item.match(/^(\d{3})_/); // Regex per estrarre NNN
+          // Considera solo i file per determinare l'indice, non le directory
+          if (fs.lstatSync(itemPath).isFile()) { 
+            const match = item.match(/^(\d{3})_/); // Regex per estrarre NNN dal nome del file
             if (match && match[1]) {
               const currentIndex = parseInt(match[1], 10);
               if (currentIndex > maxIndex) {
@@ -1166,39 +1166,20 @@ ipcMain.handle(
             }
           }
         } catch (e: any) {
-          // Ignora errori se lstat fallisce o l'item non è una directory, ecc.
+          // Ignora errori se lstat fallisce (es. link simbolico rotto) o l'item non è un file
           log.warn(
-            `[Enable Mod] Error processing item ${item} in ${gameModsPath}: ${e.message}`
+            `[Enable Mod - Index Scan] Error processing item ${item} in ${gameModsPath}: ${e.message}`
           );
         }
       }
-      const nextModIndex = maxIndex + 1; // Il prossimo indice è il massimo trovato + 1
+      const nextModIndex = maxIndex + 1;
       const numericPrefix = String(nextModIndex).padStart(3, '0');
 
-      // Il nome della cartella di destinazione nel gioco userà il modName fornito.
-      // Questo modName dovrebbe essere il nome sanificato della directory della mod nello staging.
-      const targetGameModFolderName = `${numericPrefix}_${modName}`;
-      const destModFolderPathInGame = nodePath.join(
-        gameModsPath,
-        targetGameModFolderName
-      );
-
-      // La directory sorgente è la cartella della mod nell'area di staging.
-      // Se modStagingPakPath è ".../staging/MyMod/MyMod.pak",
-      // allora sourceModStagingDirectory è ".../staging/MyMod/"
       const sourceModStagingDirectory = sourceModDirectory;
-
       log.info(
         `[Main ENABLE_MOD] Source mod staging directory: "${sourceModStagingDirectory}"`
       );
-      log.info(
-        `[Main ENABLE_MOD] Target mod folder name in game: "${targetGameModFolderName}"`
-      );
-      log.info(
-        `[Main ENABLE_MOD] Full destination path in game: "${destModFolderPathInGame}"`
-      );
 
-      // Verifica se la directory sorgente esiste
       if (!fs.existsSync(sourceModStagingDirectory)) {
         log.error(
           `[Main ENABLE_MOD] Source staging directory does not exist: ${sourceModStagingDirectory}`
@@ -1209,21 +1190,60 @@ ipcMain.handle(
         };
       }
 
-      // Non è necessario creare destModFolderPathInGame esplicitamente qui,
-      // perché copyDirRecursive lo farà se non esiste.
+      const filesToCopy = await fsPromises.readdir(sourceModStagingDirectory);
+      const copiedFilePaths: string[] = [];
+      let allFilesSkipped = true;
 
+      for (const fileName of filesToCopy) {
+        const sourceFilePath = nodePath.join(sourceModStagingDirectory, fileName);
+        
+        if (fs.lstatSync(sourceFilePath).isFile()) {
+          allFilesSkipped = false;
+          const targetFileName = `${numericPrefix}_${fileName}`;
+          const destFilePathInGame = nodePath.join(gameModsPath, targetFileName);
+
+          log.info(
+            `[Main ENABLE_MOD] Copying file from "${sourceFilePath}" to "${destFilePathInGame}"`
+          );
+          await fsPromises.copyFile(sourceFilePath, destFilePathInGame);
+          copiedFilePaths.push(destFilePathInGame);
+          log.info(
+            `[Main ENABLE_MOD] Successfully copied file "${fileName}" to "${destFilePathInGame}".`
+          );
+        } else {
+          log.info(`[Main ENABLE_MOD] Skipping directory: "${fileName}" in staging folder "${sourceModStagingDirectory}".`);
+        }
+      }
+
+      if (allFilesSkipped && filesToCopy.length > 0) {
+        log.warn(`[Main ENABLE_MOD] Mod directory ${sourceModStagingDirectory} for mod "${modName}" contained only subdirectories. No files were copied.`);
+        return {
+          success: false, // Considerato un fallimento se nessun file idoneo viene trovato
+          error: 'Mod directory contained only subdirectories or was empty. No files copied.',
+          copiedFiles: [],
+          numericPrefix: numericPrefix
+        };
+      } else if (copiedFilePaths.length === 0 && filesToCopy.length === 0){
+        log.warn(`[Main ENABLE_MOD] Mod directory ${sourceModStagingDirectory} for mod "${modName}" was empty. No files were copied.`);
+         return {
+          success: false, // Considerato un fallimento se la directory è vuota
+          error: 'Mod staging directory was empty. No files copied.',
+          copiedFiles: [],
+          numericPrefix: numericPrefix
+        };
+      }
+      
       log.info(
-        `[Main] Copying mod directory from "${sourceModStagingDirectory}" to "${destModFolderPathInGame}"`
-      );
-      await copyDirRecursive(
-        sourceModStagingDirectory,
-        destModFolderPathInGame
-      );
-      log.info(
-        `[Main] Successfully copied directory for mod "${modName}" to "${destModFolderPathInGame}".`
+        `[Main] Successfully copied ${copiedFilePaths.length} file(s) for mod "${modName}" to "${gameModsPath}" with prefix "${numericPrefix}".`
       );
 
-      return { success: true, newPath: destModFolderPathInGame };
+      return { 
+        success: true, 
+        newPath: gameModsPath, // Il "newPath" ora si riferisce alla directory ~mods generale
+        numericPrefix: numericPrefix, // Il prefisso usato per i file di questa mod
+        copiedFilePaths: copiedFilePaths // L'elenco dei file effettivamente copiati
+      };
+
     } catch (error: any) {
       log.error(`[Enable Mod] Error enabling mod ${modName}:`, error);
       return {
@@ -1238,279 +1258,177 @@ ipcMain.handle(
   'disable-mod',
   async (
     event,
-    baseModNameInput: string,
-    isVirtualModParam: boolean = false
+    baseModNameInput: string, // Questo potrebbe essere il nome della mod o, per i virtuali, il nome della cartella NNN_NomeMod
+    isVirtualModParam: boolean = false,
+    // NUOVO PARAMETRO: Il prefisso numerico usato per i file di questa mod quando è stata abilitata.
+    // Necessario solo se isVirtualModParam è false.
+    numericPrefixToUse?: string | null 
   ) => {
-    // Log IMMEDIATO dei parametri di input
     log.info(
-      `[Disable Mod - ENTRY] Received baseModNameInput: "${baseModNameInput}", isVirtualModParam: ${isVirtualModParam}`
+      `[Disable Mod - ENTRY] Received baseModNameInput: "${baseModNameInput}", isVirtualModParam: ${isVirtualModParam}, numericPrefixToUse: "${numericPrefixToUse}"`
     );
 
-    let effectiveBaseModName = baseModNameInput;
-    // Usiamo isVirtualModParam qui per la condizione
-    if (isVirtualModParam && /^\d{3}_/.test(baseModNameInput)) {
-      log.info(
-        `[Disable Mod - STRIP LOGIC] Condition TRUE. baseModNameInput: "${baseModNameInput}", isVirtualModParam: ${isVirtualModParam}. Attempting to strip prefix.`
-      );
-      effectiveBaseModName = baseModNameInput.substring(4);
-      log.info(
-        `[Disable Mod - STRIP LOGIC] Stripped. effectiveBaseModName is now: "${effectiveBaseModName}"`
-      );
-    } else {
-      log.info(
-        `[Disable Mod - STRIP LOGIC] Condition FALSE. baseModNameInput: "${baseModNameInput}", isVirtualModParam: ${isVirtualModParam}, regexTestResult: ${/^\d{3}_/.test(baseModNameInput)}.`
-      );
-    }
-
-    const rawCleanBaseModName = effectiveBaseModName.replace(/\\.pak$/, '');
-    log.info(
-      `[Disable Mod - PRE-SANITIZE] effectiveBaseModName: "${effectiveBaseModName}", rawCleanBaseModName: "${rawCleanBaseModName}"`
-    );
-
-    const searchName = sanitizeDirectoryName(rawCleanBaseModName);
-    log.info(
-      `[Disable Mod - POST-SANITIZE] Sanitized searchName for comparison: "${searchName}"`
-    );
     const gameModsPath = await getGameModsPath();
     if (!gameModsPath) {
       return { success: false, error: 'Game folder path not configured.' };
     }
 
-    try {
-      const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
-      let modFolderToDelete: string | undefined;
-
-      for (const item of itemsInGameModsDir) {
-        const itemPath = nodePath.join(gameModsPath, item);
-        log.info(
-          `[Disable Mod - DEBUG] Processing item: "${item}" at path: "${itemPath}"`
-        );
-
-        let isDir = false;
-        try {
-          isDir = fs.lstatSync(itemPath).isDirectory();
-          log.info(
-            `[Disable Mod - DEBUG] Item "${item}" is a directory: ${isDir}`
-          );
-        } catch (e: any) {
-          log.warn(
-            `[Disable Mod - DEBUG] Failed to lstat item "${item}": ${e.message}. Skipping.`
-          );
-          continue; // Salta questo item se lstat fallisce
-        }
-
-        const isNNNPrefixed = /^\d{3}_/.test(item); // CORREZIONE: Rimosso doppio backslash
-        log.info(
-          `[Disable Mod - DEBUG] Item "${item}" is NNN_ prefixed: ${isNNNPrefixed}`
-        );
-
-        if (isDir && isNNNPrefixed) {
-          const folderBaseName = item.substring(4); // Rimuove "NNN_"
-          log.info(
-            `[Disable Mod - DEBUG] Candidate folder: "${item}". Extracted folderBaseName: "${folderBaseName}". Comparing with searchName: "${searchName}" (case-insensitive)`
-          );
-
-          if (folderBaseName.toLowerCase() === searchName.toLowerCase()) {
-            log.info(
-              `[Disable Mod - DEBUG] Match FOUND for "${item}". folderBaseName.toLowerCase(): "${folderBaseName.toLowerCase()}", searchName.toLowerCase(): "${searchName.toLowerCase()}"`
-            );
-            modFolderToDelete = item;
-            break;
-          } else {
-            log.info(
-              `[Disable Mod - DEBUG] Match FAILED for "${item}". folderBaseName.toLowerCase(): "${folderBaseName.toLowerCase()}", searchName.toLowerCase(): "${searchName.toLowerCase()}"`
-            );
-          }
-        } else {
-          let reason = '';
-          if (!isDir) reason += 'Not a directory. ';
-          if (!isNNNPrefixed) reason += 'Not NNN_ prefixed. ';
-          log.info(
-            `[Disable Mod - DEBUG] Item "${item}" skipped. Reason: ${reason.trim()}`
-          );
-        }
-      }
-
-      if (!modFolderToDelete) {
-        log.warn(
-          `[Disable Mod] No directory found for base name ${searchName} in ${gameModsPath} with NNN_ prefix.`
-        );
-        return {
-          success: true,
-          message:
-            'Mod directory not found, possibly already disabled or removed.',
-        };
-      }
-
-      const fullPathToModFolderInGame = nodePath.join(
-        gameModsPath,
-        modFolderToDelete! // modFolderToDelete è garantito essere definito se siamo qui
+    if (!fs.existsSync(gameModsPath)) {
+      log.warn(
+        `[Disable Mod] Game mods directory ${gameModsPath} does not exist. Nothing to disable.`
       );
+      return { success: true, message: 'Game mods directory does not exist.' };
+    }
 
+    try {
       if (isVirtualModParam) {
-        // CORREZIONE: da isVirtualMod a isVirtualModParam
+        // Logica per i MOD VIRTUALI (gestiti come cartelle NNN_NomeMod)
+        let folderNameToFind = baseModNameInput;
+        let fullPathToModFolderInGame: string;
+
+        // Se baseModNameInput non inizia già con NNN_, o se vogliamo essere sicuri di trovare la cartella corretta
+        // anche se baseModNameInput fosse solo il nome base.
+        const sanitizedBaseNameFromInput = sanitizeDirectoryName(baseModNameInput.replace(/^\d{3}_/, '').replace(/\\.pak$/, ''));
+        log.info(`[Disable Mod - Virtual] Sanitized base name from input for search: "${sanitizedBaseNameFromInput}"`);
+
+        const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
+        const foundFolder = itemsInGameModsDir.find(item => {
+          const itemPath = nodePath.join(gameModsPath, item);
+          if (fs.lstatSync(itemPath).isDirectory()) {
+            const match = item.match(/^(\d{3})_(.*)$/);
+            if (match && match[2]) {
+              // Confronta il nome base (match[2]) (sanificato) con sanitizedBaseNameFromInput
+              const currentSanitizedBaseName = sanitizeDirectoryName(match[2]);
+              if (currentSanitizedBaseName.toLowerCase() === sanitizedBaseNameFromInput.toLowerCase()) {
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+
+        if (foundFolder) {
+          folderNameToFind = foundFolder;
+          fullPathToModFolderInGame = nodePath.join(gameModsPath, folderNameToFind);
+          log.info(`[Disable Mod - Virtual] Found matching folder: "${folderNameToFind}"`);
+        } else {
+          // Tentativo finale: se baseModNameInput era già NNN_NomeMod, usalo direttamente ma verifica l'esistenza.
+          if (/^\d{3}_/.test(baseModNameInput)) {
+             folderNameToFind = sanitizeDirectoryName(baseModNameInput); // Assicura che il nome completo sia sanificato
+             fullPathToModFolderInGame = nodePath.join(gameModsPath, folderNameToFind);
+             if (!fs.existsSync(fullPathToModFolderInGame) || !fs.lstatSync(fullPathToModFolderInGame).isDirectory()) {
+                log.warn(`[Disable Mod - Virtual] Input "${baseModNameInput}" looked like NNN_ModName, but directory ${fullPathToModFolderInGame} not found or invalid.`);
+                return { success: true, message: `Virtual mod folder for ${baseModNameInput} not found.` };
+             }
+             log.info(`[Disable Mod - Virtual] Using direct input "${folderNameToFind}" as it seems to be a NNN_ prefixed name and exists.`);
+          } else {
+            log.warn(`[Disable Mod - Virtual] No NNN_ prefixed folder found for base name "${sanitizedBaseNameFromInput}" in ${gameModsPath}.`);
+            return { success: true, message: `Virtual mod folder for ${sanitizedBaseNameFromInput} not found, possibly already removed.` };
+          }
+        }
+        
+        // A questo punto, fullPathToModFolderInGame dovrebbe essere valido se siamo arrivati qui senza return.
+        // La vecchia logica di controllo esistenza è ridondante se la ricerca sopra ha successo e imposta fullPathToModFolderInGame.
+        // Ma la manteniamo per sicurezza se il flusso logico cambia.
+        if (!fs.existsSync(fullPathToModFolderInGame) || !fs.lstatSync(fullPathToModFolderInGame).isDirectory()) {
+          log.warn(
+            `[Disable Mod - Virtual] Directory ${fullPathToModFolderInGame} (derived from ${folderNameToFind}) not found or is not a directory. This shouldn't happen if search was successful.`
+          );
+          return { success: true, message: 'Virtual mod directory became invalid during processing.' };
+        }
+
         log.info(
-          `[Disable Mod] Virtual mod "${searchName}" (folder ${modFolderToDelete}) detected. Moving from game's ~mods to staging and then removing from ~mods.`
+          `[Disable Mod - Virtual] Virtual mod "${folderNameToFind}" detected. Moving from game's ~mods to staging and then removing from ~mods.`
         );
         const stagingPath = getCurrentStagingPath();
-        // searchName è già il nome sanificato della cartella come dovrebbe essere nello staging
-        const stagingModDirectoryPath = nodePath.join(stagingPath, searchName);
+        // Estrai il nome base pulito da folderNameToFind (che è NNN_NomeModOriginale)
+        const actualModNameForStaging = folderNameToFind.match(/^\d{3}_(.*)$/)?.[1] || folderNameToFind;
+        const stagingModDirectoryPath = nodePath.join(stagingPath, sanitizeDirectoryName(actualModNameForStaging));
 
-        try {
-          // 1. Assicurati che la directory di staging esista
-          if (!fs.existsSync(stagingPath)) {
-            await fsPromises.mkdir(stagingPath, { recursive: true });
-            log.info(
-              `[Disable Mod - Virtual] Created staging directory: "${stagingPath}"`
-            );
-          }
+        // 1. Assicurati che la directory di staging genitore esista
+        if (!fs.existsSync(stagingPath)) {
+          await fsPromises.mkdir(stagingPath, { recursive: true });
+        }
+        // 2. Copia la cartella del mod da ~mods allo staging (sovrascrive se esiste)
+        if (fs.existsSync(stagingModDirectoryPath)) {
+          log.warn(
+            `[Disable Mod - Virtual] Staging directory "${stagingModDirectoryPath}" already exists. It will be overwritten.`
+          );
+          await fsPromises.rm(stagingModDirectoryPath, { recursive: true, force: true });
+        }
+        await copyDirRecursive(fullPathToModFolderInGame, stagingModDirectoryPath);
+        log.info(
+          `[Disable Mod - Virtual] Copied "${fullPathToModFolderInGame}" to staging "${stagingModDirectoryPath}".`
+        );
 
-          // 2. Copia la cartella del mod da ~mods allo staging
-          //    Sovrascrivi se esiste già nello staging (potrebbe essere una versione vecchia)
-          if (fs.existsSync(stagingModDirectoryPath)) {
-            log.warn(
-              `[Disable Mod - Virtual] Staging directory "${stagingModDirectoryPath}" already exists. It will be overwritten.`
-            );
-            await fsPromises.rm(stagingModDirectoryPath, {
-              recursive: true,
-              force: true,
-            });
-          }
+        // 3. Rimuovi la cartella del mod dalla directory ~mods del gioco
+        await fsPromises.rm(fullPathToModFolderInGame, { recursive: true, force: true });
+        log.info(
+          `[Disable Mod - Virtual] Deleted directory ${fullPathToModFolderInGame} from game's ~mods.`
+        );
+        return { success: true };
 
-          log.info(
-            `[Disable Mod - Virtual] Attempting to copy from (game ~mods): "${fullPathToModFolderInGame}" to (staging): "${stagingModDirectoryPath}"`
-          );
-          if (!fs.existsSync(fullPathToModFolderInGame)) {
-            log.error(
-              `[Disable Mod - Virtual] CRITICAL PRE-COPY CHECK: Source directory "${fullPathToModFolderInGame}" does NOT exist. Aborting copy.`
-            );
-            // Potresti voler restituire un errore qui per evitare ulteriori problemi
-            // return { success: false, error: `Source mod directory ${fullPathToModFolderInGame} not found for virtual mod.` };
-          } else {
-            log.info(
-              `[Disable Mod - Virtual] PRE-COPY CHECK: Source directory "${fullPathToModFolderInGame}" exists.`
-            );
-          }
-
-          await copyDirRecursive(
-            fullPathToModFolderInGame,
-            stagingModDirectoryPath
-          );
-          log.info(
-            `[Disable Mod - Virtual] Call to copyDirRecursive completed. Source: "${fullPathToModFolderInGame}", Destination: "${stagingModDirectoryPath}".`
-          );
-
-          // Verifica se la directory di staging è stata creata/popolata
-          const stagingDirExistsAfterCopy = fs.existsSync(
-            stagingModDirectoryPath
-          );
-          log.info(
-            `[Disable Mod - Virtual] Verification after copy: Staging directory "${stagingModDirectoryPath}" exists: ${stagingDirExistsAfterCopy}`
-          );
-          if (stagingDirExistsAfterCopy) {
-            const filesInStagingDir = fs.readdirSync(stagingModDirectoryPath);
-            log.info(
-              `[Disable Mod - Virtual] Files in staging directory "${stagingModDirectoryPath}" after copy: ${filesInStagingDir.join(', ')} (Count: ${filesInStagingDir.length})`
-            );
-            if (filesInStagingDir.length === 0) {
-              log.warn(
-                `[Disable Mod - Virtual] Staging directory "${stagingModDirectoryPath}" was created but is empty after copy attempt from "${fullPathToModFolderInGame}".`
-              );
-            }
-          } else {
-            log.error(
-              `[Disable Mod - Virtual] CRITICAL: Staging directory "${stagingModDirectoryPath}" was NOT created after copy attempt from "${fullPathToModFolderInGame}".`
-            );
-          }
-
-          // 3. Rimuovi la cartella del mod dalla directory ~mods del gioco
-          //    Questa parte verrà eseguita solo se la copia non ha generato un errore che ha interrotto il blocco try.
-          //    Se la stagingDirExistsAfterCopy è false, la rimozione qui sotto è problematica.
-          if (!stagingDirExistsAfterCopy) {
-            log.error(
-              `[Disable Mod - Virtual] SKIPPING deletion from ~mods because staging copy failed for "${fullPathToModFolderInGame}".`
-            );
-            // Considera di lanciare un errore o restituire un fallimento qui
-            // throw new Error(`Failed to copy virtual mod ${searchName} to staging. Deletion from ~mods aborted.`);
-          } else {
-            // Procedi con la rimozione solo se la copia nello staging sembra essere andata a buon fine
-            log.info(
-              `[Disable Mod - Virtual] Deleting directory ${fullPathToModFolderInGame} from game's ~mods.`
-            );
-            await fsPromises.rm(fullPathToModFolderInGame, {
-              recursive: true,
-              force: true,
-            });
-            // Verifica se la cartella è stata effettivamente eliminata
-            const stillExistsAfterDelete = fs.existsSync(
-              fullPathToModFolderInGame
-            );
-            log.info(
-              `[Disable Mod - Virtual] Verification after delete: Path "${fullPathToModFolderInGame}" still exists: ${stillExistsAfterDelete}`
-            );
-            if (stillExistsAfterDelete) {
-              log.error(
-                `[Disable Mod - Virtual] CRITICAL: Deletion of "${fullPathToModFolderInGame}" was attempted but path still exists! This indicates a problem with file system permissions or a lock on the directory/files.`
-              );
-            }
-          }
-          log.info(
-            `[Disable Mod - Virtual] Mod ${searchName} (original folder ${modFolderToDelete}) processed successfully (copy to staging and deletion from ~mods attempted).`
-          );
-          log.info(
-            `[Disable Mod - Virtual] Deleting directory ${fullPathToModFolderInGame} from game's ~mods.`
-          );
-          await fsPromises.rm(fullPathToModFolderInGame, {
-            recursive: true,
-            force: true,
-          });
-          // Verifica se la cartella è stata effettivamente eliminata
-          const stillExistsAfterDelete = fs.existsSync(
-            fullPathToModFolderInGame
-          );
-          log.info(
-            `[Disable Mod - Virtual] Verification after delete: Path "${fullPathToModFolderInGame}" still exists: ${stillExistsAfterDelete}`
-          );
-          if (stillExistsAfterDelete) {
-            log.error(
-              `[Disable Mod - Virtual] CRITICAL: Deletion of "${fullPathToModFolderInGame}" was attempted but path still exists! This indicates a problem with file system permissions or a lock on the directory/files.`
-            );
-            // Considerare di restituire un errore qui se la rimozione è fondamentale per lo stato corretto
-            // return { success: false, error: `Failed to remove mod from game directory '${modFolderToDelete}' after staging. It may be locked or permissions are insufficient.` };
-          }
-          log.info(
-            `[Disable Mod - Virtual] Mod ${searchName} (original folder ${modFolderToDelete}) processed successfully (deletion from ~mods attempted).`
-          );
-          return {
-            success: true,
-            message: `Virtual mod ${searchName} moved to staging and removed from active mods.`,
-          };
-        } catch (virtualModError: any) {
+      } else {
+        // Logica per MOD NON VIRTUALI (gestiti come file NNN_file.ext)
+        if (!numericPrefixToUse) {
           log.error(
-            `[Disable Mod - Virtual] Error during virtual mod processing for "${searchName}" (source: "${fullPathToModFolderInGame}", target staging: "${stagingModDirectoryPath}"):`,
-            virtualModError
+            '[Disable Mod] numericPrefixToUse is required for non-virtual mods but was not provided. Cannot disable mod.'
           );
           return {
             success: false,
-            error: `Error processing virtual mod ${searchName}: ${virtualModError.message || 'Unknown error'}. Check logs for details.`,
+            error: 'Numeric prefix not provided for a non-virtual mod.',
           };
         }
-      } else {
-        // Logica esistente per i mod non virtuali (quelli che hanno una controparte nello staging)
+
+        const prefixPattern = `${numericPrefixToUse}_`;
         log.info(
-          `[Disable Mod] Standard mod "${searchName}" (folder ${modFolderToDelete}). Deleting directory ${fullPathToModFolderInGame} from game's ~mods.`
+          `[Disable Mod] Disabling non-virtual mod. Scanning for files with prefix "${prefixPattern}" in ${gameModsPath}`
         );
-        await fsPromises.rm(fullPathToModFolderInGame, {
-          recursive: true,
-          force: true,
-        });
+
+        const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
+        let filesDeletedCount = 0;
+
+        for (const item of itemsInGameModsDir) {
+          const itemPath = nodePath.join(gameModsPath, item);
+          if (item.startsWith(prefixPattern)) {
+            try {
+              // Verifica se è un file prima di tentare l'eliminazione
+              if (fs.lstatSync(itemPath).isFile()) {
+                await fsPromises.unlink(itemPath);
+                log.info(`[Disable Mod] Deleted file: ${itemPath}`);
+                filesDeletedCount++;
+              } else {
+                log.warn(`[Disable Mod] Item ${itemPath} matches prefix but is not a file. Skipping.`);
+              }
+            } catch (error: any) {
+              log.error(
+                `[Disable Mod] Error deleting file ${itemPath}: ${error.message}`
+              );
+              // Continua a tentare di eliminare altri file corrispondenti
+            }
+          }
+        }
+
+        if (filesDeletedCount === 0) {
+          log.warn(
+            `[Disable Mod] No files found with prefix "${prefixPattern}" in ${gameModsPath}. Mod might have been already disabled or prefix was incorrect.`
+          );
+          return {
+            success: true, // Considerato successo se non c'era nulla da eliminare con quel prefisso
+            message: `No files found with prefix ${prefixPattern}.`,
+          };
+        }
+
         log.info(
-          `[Disable Mod] Mod ${searchName} (folder ${modFolderToDelete}) disabled successfully.`
+          `[Disable Mod] Successfully deleted ${filesDeletedCount} file(s) with prefix "${prefixPattern}".`
         );
         return { success: true };
       }
     } catch (error: any) {
-      log.error(`[Disable Mod] Error disabling mod ${searchName}:`, error);
+      log.error(
+        `[Disable Mod] Error disabling mod (base name: "${baseModNameInput}", prefix: "${numericPrefixToUse}"):`,
+        error
+      );
       return {
         success: false,
         error: error.message || 'Unknown error during mod disabling.',
