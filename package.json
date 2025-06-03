@@ -1,6 +1,6 @@
 {
   "name": "inzoi-mod-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "dist-electron/main/index.js",
   "description": "InZOI Mod Manager",
   "author": "Nebula Studios",
@@ -22,6 +22,10 @@
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.cjs --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,cjs,json,md,html}\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nebula-Studios/IMM.git"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
