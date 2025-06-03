@@ -1,6 +1,6 @@
 {
   "name": "inzoi-mod-manager",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist-electron/main/index.js",
   "description": "InZOI Mod Manager",
   "author": "Nebula Studios",
