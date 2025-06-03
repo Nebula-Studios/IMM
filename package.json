@@ -1,6 +1,6 @@
 {
   "name": "inzoi-mod-manager",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "dist-electron/main/index.js",
   "description": "InZOI Mod Manager",
   "author": "Nebula Studios",
@@ -95,5 +95,8 @@
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6",
     "vitest": "^2.1.5"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }
