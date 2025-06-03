@@ -35,6 +35,14 @@ export interface IElectronAPI {
   }>;
   openExternalLink: (url: string) => Promise<void>;
   checkUpdate: () => Promise<any>;
+  checkUpdateFromGitHub: () => Promise<{
+    success: boolean;
+    hasUpdate?: boolean;
+    currentVersion?: string;
+    latestVersion?: string;
+    releaseUrl?: string;
+    error?: string;
+  }>;
   startDownload: () => Promise<any>;
   quitAndInstall: () => Promise<any>;
   ipcOn: (

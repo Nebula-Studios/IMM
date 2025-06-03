@@ -6,25 +6,84 @@ import {
   CheckCircle,
   HelpCircle,
   RefreshCw,
-} from 'lucide-react'; // Aggiunta RefreshCw
-import { cn } from '@/lib/utils.ts'; // Importa cn
+  Download,
+  AlertCircle,
+} from 'lucide-react';
+import { cn } from '@/lib/utils.ts';
 import { Button } from '../ui/button.tsx';
+import { useUpdateStatus } from '@/hooks/useUpdateStatus.ts';
+import { toast } from 'sonner';
 
 interface StatusBarProps {
   className?: string;
-  onTriggerUpdateCheck?: () => void; // Aggiunta la prop per il controllo manuale
+  onTriggerUpdateCheck?: () => void; // Mantenuto per compatibilità, ma non più usato
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({
   className,
-  onTriggerUpdateCheck,
 }) => {
   const { t } = useTranslation();
-  // Informazioni sugli aggiornamenti (potrebbero venire dallo stato dell'app)
-  const updateStatusMessage = t('statusBar.noUpdates'); // Esempio
-  const nexusModsLink = 'https://www.nexusmods.com/inzoi'; // Aggiorna se il link è diverso
-  const isUpdateAvailable = false; // Esempio, dovrebbe venire dallo stato dell'app
-  const isError = false; // Esempio per stato di errore
+  const {
+    isChecking,
+    isUpdateAvailable,
+    updateError,
+    versionInfo,
+    checkForUpdates,
+    downloadUpdate,
+  } = useUpdateStatus();
+
+  const nexusModsLink = 'https://www.nexusmods.com/inzoi';
+
+  // Determina il messaggio di stato
+  const getUpdateStatusMessage = () => {
+    if (isChecking) {
+      return t('statusBar.checkingForUpdates');
+    }
+    if (updateError) {
+      return t('statusBar.updateError');
+    }
+    if (isUpdateAvailable && versionInfo) {
+      return t('statusBar.updateAvailable', { version: versionInfo.newVersion });
+    }
+    return t('statusBar.noUpdates');
+  };
+
+  const updateStatusMessage = getUpdateStatusMessage();
+
+  const handleCheckForUpdates = () => {
+    toast.promise(
+      new Promise((resolve) => {
+        checkForUpdates();
+        // Risolviamo subito la promise per evitare che il toast rimanga in loading
+        resolve(undefined);
+      }),
+      {
+        loading: t('statusBar.checkingForUpdates'),
+        success: () => {
+          // Il messaggio di successo sarà gestito dall'hook quando riceve la risposta
+          return '';
+        },
+        error: t('statusBar.updateError'),
+      }
+    );
+  };
+
+  const handleDownloadUpdate = () => {
+    const isDevelopment = !window.electronAPI || import.meta.env.DEV;
+    downloadUpdate();
+    
+    if (isDevelopment) {
+      toast.info(t('statusBar.viewOnGitHub'));
+    } else {
+      toast.info(t('statusBar.downloadUpdate'));
+    }
+  };
+
+  // Determina il testo del pulsante in base alla modalità
+  const getDownloadButtonText = () => {
+    const isDevelopment = !window.electronAPI || import.meta.env.DEV;
+    return isDevelopment ? t('statusBar.viewOnGitHub') : t('statusBar.downloadUpdate');
+  };
 
   const handleNexusLinkClick = (e: React.MouseEvent) => {
     e.preventDefault(); // Previene il comportamento predefinito del link #
@@ -38,14 +97,19 @@ const StatusBar: React.FC<StatusBarProps> = ({
     window.electronAPI.openExternalLink(nexusModsLink);
   };
 
+  // Determina icona e colore in base allo stato
   let statusIcon;
   let statusTextColor = 'text-slate-400';
-  if (isError) {
-    statusIcon = <Info size={15} className="mr-1.5 text-red-400" />;
+  
+  if (updateError) {
+    statusIcon = <AlertCircle size={15} className="mr-1.5 text-red-400" />;
     statusTextColor = 'text-red-400';
   } else if (isUpdateAvailable) {
     statusIcon = <Info size={15} className="mr-1.5 text-blue-400" />;
     statusTextColor = 'text-blue-400';
+  } else if (isChecking) {
+    statusIcon = <RefreshCw size={15} className="mr-1.5 text-yellow-400 animate-spin" />;
+    statusTextColor = 'text-yellow-400';
   } else {
     statusIcon = <CheckCircle size={15} className="mr-1.5 text-green-400" />;
     statusTextColor = 'text-green-400';
@@ -66,17 +130,36 @@ const StatusBar: React.FC<StatusBarProps> = ({
         {statusIcon}
         <span>{updateStatusMessage}</span>
       </div>
+      
+      <div className="flex items-center gap-2">
+        {isUpdateAvailable ? (
+          <Button
+            variant="ghost"
+            color="primary"
+            size="sm"
+            onClick={handleDownloadUpdate}
+            title={getDownloadButtonText()}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            {getDownloadButtonText()}
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            onClick={handleCheckForUpdates}
+            disabled={isChecking}
+            title={t('statusBar.checkForUpdates')}
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-1", isChecking && "animate-spin")} />
+            {t('statusBar.checkForUpdatesButton')}
+          </Button>
+        )}
+      </div>
       <Button
         variant="ghost"
-        size="sm"
-        onClick={onTriggerUpdateCheck}
-        title={t('statusBar.checkForUpdates', 'Check for Updates')}
-      >
-        <RefreshCw className="h-4 w-4 mr-1" />
-        {t('statusBar.checkForUpdatesButton', 'Check for Updates')}
-      </Button>
-      <Button
-        variant="ghost"
+        color="warning"
         size="sm"
         onClick={() =>
           handleOpenLink(

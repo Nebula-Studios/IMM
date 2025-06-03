@@ -55,53 +55,27 @@ const Update = forwardRef<UpdateHandle>((_props: {}, ref) => {
     if (window.electronAPI && window.electronAPI.checkUpdate) {
       try {
         const result = await window.electronAPI.checkUpdate();
-        setProgressInfo({ percent: 0 }); 
+        setProgressInfo({ percent: 0 });
         setChecking(false);
-        setModalOpen(true);
+        // Non apriamo più automaticamente il modal qui
         if (result?.error) {
           setUpdateAvailable(false);
           setUpdateError(result?.error as ErrorType);
-          setModalBtn({
-            okText: 'OK',
-            onOk: () => setModalOpen(false),
-            cancelText: undefined,
-            onCancel: undefined,
-          });
         } else if (result) {
           onUpdateCanAvailable(null, result as VersionInfo);
         } else {
            setUpdateAvailable(false);
-           setVersionInfo(undefined); 
-           setModalBtn({
-            okText: 'OK',
-            onOk: () => setModalOpen(false),
-            cancelText: undefined,
-            onCancel: undefined,
-          });
+           setVersionInfo(undefined);
         }
       } catch (e: any) {
         setChecking(false);
-        setModalOpen(true);
         setUpdateAvailable(false);
         setUpdateError(e as ErrorType);
-        setModalBtn({
-          okText: 'OK',
-          onOk: () => setModalOpen(false),
-          cancelText: undefined,
-          onCancel: undefined,
-        });
       }
     } else {
       console.error('electronAPI.checkUpdate is not available');
       setChecking(false);
       setUpdateError(new Error('Update check functionality is not available.'));
-      setModalBtn({
-        okText: 'OK',
-        onOk: () => setModalOpen(false),
-        cancelText: undefined,
-        onCancel: undefined,
-      });
-      setModalOpen(true);
     }
   };
 
@@ -121,16 +95,17 @@ const Update = forwardRef<UpdateHandle>((_props: {}, ref) => {
           onCancel: () => setModalOpen(false),
         });
         setUpdateAvailable(true);
+        // Non apriamo più automaticamente il modal, sarà gestito dalla StatusBar
       } else {
         setModalBtn({
           okText: 'OK',
           onOk: () => setModalOpen(false),
-          cancelText: undefined, 
+          cancelText: undefined,
           onCancel: undefined,
         });
         setUpdateAvailable(false);
       }
-      setModalOpen(true); 
+      // Rimuoviamo setModalOpen(true) per non aprire automaticamente il popup
     },
     []
   );
@@ -145,7 +120,7 @@ const Update = forwardRef<UpdateHandle>((_props: {}, ref) => {
         cancelText: undefined,
         onCancel: undefined,
       });
-      setModalOpen(true); 
+      // Non apriamo più automaticamente il modal per gli errori
     },
     []
   );
@@ -226,17 +201,19 @@ const Update = forwardRef<UpdateHandle>((_props: {}, ref) => {
     onUpdateDownloaded,
   ]);
 
-  useEffect(() => {
-    if (!checking) { 
-        checkUpdate();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  // Rimuoviamo il controllo automatico all'avvio per evitare popup indesiderati
+  // Gli aggiornamenti saranno controllati solo manualmente dalla StatusBar
+  // useEffect(() => {
+  //   if (!checking) {
+  //       checkUpdate();
+  //   }
+  // // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
 
   useImperativeHandle(ref, () => ({
     triggerUpdateCheck: () => {
       if (!checking) {
-        setModalOpen(true); 
+        setModalOpen(true); // Manteniamo questo per il controllo manuale dalla StatusBar
       }
       checkUpdate();
     },

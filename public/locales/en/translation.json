@@ -25,6 +25,13 @@
   },
   "statusBar": {
     "noUpdates": "You're all set! No new updates right now.",
+    "updateAvailable": "Update available: v{{version}}",
+    "updateError": "Update check error",
+    "checkingForUpdates": "Checking for updates...",
+    "checkForUpdates": "Check for Updates",
+    "checkForUpdatesButton": "Check for Updates",
+    "downloadUpdate": "Download Update",
+    "viewOnGitHub": "View on GitHub",
     "visitNexusMods": "Visit InZOI on Nexus Mods",
     "inzoiOnNexusMods": "InZOI on Nexus Mods"
   },

@@ -25,6 +25,13 @@
   },
   "statusBar": {
     "noUpdates": "Tutto aggiornato! Nessun nuovo aggiornamento per ora.",
+    "updateAvailable": "Aggiornamento disponibile: v{{version}}",
+    "updateError": "Errore controllo aggiornamenti",
+    "checkingForUpdates": "Controllo aggiornamenti...",
+    "checkForUpdates": "Controlla Aggiornamenti",
+    "checkForUpdatesButton": "Controlla Aggiornamenti",
+    "downloadUpdate": "Scarica Aggiornamento",
+    "viewOnGitHub": "Visualizza su GitHub",
     "visitNexusMods": "Visita InZOI su Nexus Mods",
     "inzoiOnNexusMods": "InZOI su Nexus Mods"
   },

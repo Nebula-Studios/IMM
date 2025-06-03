@@ -6,7 +6,7 @@ import GameFolderSetup from '@/components/GameFolderSetup.tsx';
 import { ModEnablerStatusNotifier } from '@/components/ModEnablerStatusNotifier.tsx';
 import ModManagerLayout from './ModManagerLayout.tsx';
 import MenuBar from '@/components/layout/MenuBar.tsx';
-import SettingsPage from '@/components/settings/SettingsPage.tsx';
+import SettingsDialog from '@/components/settings/SettingsDialog.tsx';
 import StatusBar from '@/components/layout/StatusBar.tsx'; // Importa StatusBar
 import { toast } from 'sonner';
 
@@ -19,7 +19,7 @@ interface AppContentProps {
   onHookReloadPath: () => Promise<void>;
   showSettingsPage: boolean;
   onToggleSettingsPage: () => void;
-  onTriggerUpdateCheck: () => void; // Aggiunta la nuova prop
+  // Rimossa onTriggerUpdateCheck: non più necessaria
 }
 
 export default function AppContent({
@@ -31,7 +31,6 @@ export default function AppContent({
   onHookReloadPath,
   showSettingsPage,
   onToggleSettingsPage,
-  onTriggerUpdateCheck, // Ricevi la nuova prop
 }: AppContentProps) {
   const gameFolderPath = hookGameFolderPath;
   const showSetupModal = hookShowSetupModal;
@@ -135,8 +134,6 @@ export default function AppContent({
               Checking game folder configuration.
             </p>
           </div>
-        ) : showSettingsPage ? (
-          <SettingsPage onClose={() => onToggleSettingsPage()} />
         ) : showSetupModal ? (
           <GameFolderSetup onSetupComplete={onHookHandleSetupComplete} />
         ) : (
@@ -150,7 +147,13 @@ export default function AppContent({
           </>
         )}
       </div>
-      <StatusBar onTriggerUpdateCheck={onTriggerUpdateCheck} /> {/* Passa la prop a StatusBar */}
+      
+      {/* Settings Dialog */}
+      <SettingsDialog
+        isOpen={showSettingsPage}
+        onOpenChange={(isOpen) => !isOpen && onToggleSettingsPage()}
+      />
+      <StatusBar /> {/* Non passiamo più onTriggerUpdateCheck, StatusBar gestisce tutto internamente */}
     </div>
   );
 }

@@ -117,6 +117,8 @@ const ModCard: React.FC<ModCardProps> = ({
           style={style}
           className={getDynamicClasses()}
           data-id={mod.id}
+          {...attributes}
+          {...listeners}
         >
           {/* Indicatore di stato a sinistra con animazione migliorata */}
           <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 rounded-r-full transition-all duration-300
@@ -127,10 +129,8 @@ const ModCard: React.FC<ModCardProps> = ({
           />
           
           <div className="flex items-center flex-grow truncate ml-2">
-            {/* Handle di trascinamento migliorato con feedback tattile */}
+            {/* Handle di trascinamento - ora solo visivo */}
             <span
-              {...attributes}
-              {...listeners}
               className={`drag-handle flex items-center justify-center p-2 mr-3 rounded-lg
                          transition-all duration-300 hover:bg-white/15 active:bg-white/20
                          ${isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'}

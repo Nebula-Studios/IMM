@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Update related IPC invocations
   checkUpdate: () => ipcRenderer.invoke('check-update'),
+  checkUpdateFromGitHub: () => ipcRenderer.invoke('check-update-from-github'),
   startDownload: () => ipcRenderer.invoke('start-download'),
   quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
 

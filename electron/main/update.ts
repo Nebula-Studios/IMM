@@ -46,6 +46,37 @@ export function update(win: Electron.BrowserWindow) {
     }
   })
 
+  // GitHub update check for development
+  ipcMain.handle('check-update-from-github', async () => {
+    try {
+      const response = await fetch('https://api.github.com/repos/Nebula-Studios/IMM/releases/latest');
+      
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      
+      const release = await response.json();
+      const latestVersion = release.tag_name.replace(/^v/, ''); // Rimuove il 'v' se presente
+      const currentVersion = app.getVersion();
+      
+      // Confronta le versioni (semplice confronto stringa, può essere migliorato)
+      const hasUpdate = latestVersion !== currentVersion;
+      
+      return {
+        success: true,
+        hasUpdate,
+        currentVersion,
+        latestVersion,
+        releaseUrl: release.html_url,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to check GitHub releases',
+      };
+    }
+  })
+
   // Start downloading and feedback on progress
   ipcMain.handle('start-download', (event: Electron.IpcMainInvokeEvent) => {
     startDownload(
