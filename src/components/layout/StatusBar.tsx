@@ -19,9 +19,7 @@ interface StatusBarProps {
   onTriggerUpdateCheck?: () => void; // Mantenuto per compatibilità, ma non più usato
 }
 
-const StatusBar: React.FC<StatusBarProps> = ({
-  className,
-}) => {
+const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
   const { t } = useTranslation();
   const {
     isChecking,
@@ -43,7 +41,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
       return t('statusBar.updateError');
     }
     if (isUpdateAvailable && versionInfo) {
-      return t('statusBar.updateAvailable', { version: versionInfo.newVersion });
+      return t('statusBar.updateAvailable', {
+        version: versionInfo.newVersion,
+      });
     }
     return t('statusBar.noUpdates');
   };
@@ -71,7 +71,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const handleDownloadUpdate = () => {
     const isDevelopment = !window.electronAPI || import.meta.env.DEV;
     downloadUpdate();
-    
+
     if (isDevelopment) {
       toast.info(t('statusBar.viewOnGitHub'));
     } else {
@@ -82,7 +82,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
   // Determina il testo del pulsante in base alla modalità
   const getDownloadButtonText = () => {
     const isDevelopment = !window.electronAPI || import.meta.env.DEV;
-    return isDevelopment ? t('statusBar.viewOnGitHub') : t('statusBar.downloadUpdate');
+    return isDevelopment
+      ? t('statusBar.viewOnGitHub')
+      : t('statusBar.downloadUpdate');
   };
 
   const handleNexusLinkClick = (e: React.MouseEvent) => {
@@ -100,7 +102,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   // Determina icona e colore in base allo stato
   let statusIcon;
   let statusTextColor = 'text-slate-400';
-  
+
   if (updateError) {
     statusIcon = <AlertCircle size={15} className="mr-1.5 text-red-400" />;
     statusTextColor = 'text-red-400';
@@ -108,7 +110,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
     statusIcon = <Info size={15} className="mr-1.5 text-blue-400" />;
     statusTextColor = 'text-blue-400';
   } else if (isChecking) {
-    statusIcon = <RefreshCw size={15} className="mr-1.5 text-yellow-400 animate-spin" />;
+    statusIcon = (
+      <RefreshCw size={15} className="mr-1.5 text-yellow-400 animate-spin" />
+    );
     statusTextColor = 'text-yellow-400';
   } else {
     statusIcon = <CheckCircle size={15} className="mr-1.5 text-green-400" />;
@@ -130,7 +134,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
         {statusIcon}
         <span>{updateStatusMessage}</span>
       </div>
-      
+
       <div className="flex items-center gap-2">
         {isUpdateAvailable ? (
           <Button
@@ -152,7 +156,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
             disabled={isChecking}
             title={t('statusBar.checkForUpdates')}
           >
-            <RefreshCw className={cn("h-4 w-4 mr-1", isChecking && "animate-spin")} />
+            <RefreshCw
+              className={cn('h-4 w-4 mr-1', isChecking && 'animate-spin')}
+            />
             {t('statusBar.checkForUpdatesButton')}
           </Button>
         )}
@@ -166,10 +172,10 @@ const StatusBar: React.FC<StatusBarProps> = ({
             'https://github.com/Nebula-Studios/IMM/issues/new/choose'
           )
         }
-        title="Report a Bug / Request a Feature"
+        title={t('menuBar.reportBugTooltip')}
       >
         <HelpCircle className="h-4 w-4 mr-1" />
-        Report Bug / Request a Feature
+        {t('menuBar.reportBugButton')}
       </Button>
       <a
         href={nexusModsLink} // Manteniamo href per semantica e accessibilità

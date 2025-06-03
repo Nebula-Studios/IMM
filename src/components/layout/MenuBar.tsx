@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings, FolderX, HelpCircle, RefreshCw, AlertTriangle, Play } from 'lucide-react';
+import {
+  Settings,
+  FolderX,
+  HelpCircle,
+  RefreshCw,
+  AlertTriangle,
+  Play,
+} from 'lucide-react';
 import { Button } from '../ui/button.tsx'; // Corretto percorso
+import { cn } from '../../lib/utils.ts';
 // import { APP_VERSION } from '@/lib/constants.ts';
 import appIcon from '/icon.svg'; // Importa l'icona
 import ProfileSelector from '../profiles/ProfileSelector.tsx';
@@ -23,7 +31,7 @@ export interface MenuBarProps {
   gameFolderPath: string | null;
   onDevClearFolder: () => Promise<void>;
   onSettingsClick: () => void;
-  onRefreshMods: () => void;
+  onRefreshMods: () => Promise<void>;
   onLaunchGame: () => void;
 }
 
@@ -37,6 +45,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
   const { t } = useTranslation();
   const [isManageProfilesDialogOpen, setIsManageProfilesDialogOpen] =
     useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const profileService = new ProfileService(); // Istanza del ProfileService
 
   // Stato per forzare il re-render quando i profili cambiano
@@ -47,10 +56,13 @@ const MenuBar: React.FC<MenuBarProps> = ({
   const [missingModsList, setMissingModsList] = useState<string[]>([]);
   const [loadingProfileName, setLoadingProfileName] = useState<string>('');
 
-
   // Recupera i dati dei profili dallo store e li tiene nello stato locale
-  const [profiles, setProfiles] = useState<ModProfile[]>(profileService.getProfiles());
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(profileService.getActiveProfileId());
+  const [profiles, setProfiles] = useState<ModProfile[]>(
+    profileService.getProfiles()
+  );
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(
+    profileService.getActiveProfileId()
+  );
 
   const activeProfile = profiles.find(
     (profile: ModProfile) => profile.id === activeProfileId
@@ -64,16 +76,23 @@ const MenuBar: React.FC<MenuBarProps> = ({
   };
 
   useEffect(() => {
-    console.log(
-      '[MenuBar] Rendering with gameFolderPath:',
-      gameFolderPath
-    );
-    console.log('[MenuBar] Profile Data (counter', profileUpdateCounter, '):', { profiles, activeProfileId, activeProfile });
-  }, [gameFolderPath, profiles, activeProfileId, activeProfile, profileUpdateCounter]);
+    console.log('[MenuBar] Rendering with gameFolderPath:', gameFolderPath);
+    console.log('[MenuBar] Profile Data (counter', profileUpdateCounter, '):', {
+      profiles,
+      activeProfileId,
+      activeProfile,
+    });
+  }, [
+    gameFolderPath,
+    profiles,
+    activeProfileId,
+    activeProfile,
+    profileUpdateCounter,
+  ]);
 
   const handleProfileChange = async (profileId: string) => {
     console.log(`[MenuBar] Profile change requested: ${profileId}`);
-    const profileToLoad = profiles.find(p => p.id === profileId);
+    const profileToLoad = profiles.find((p) => p.id === profileId);
     if (profileToLoad) {
       setLoadingProfileName(profileToLoad.name); // Salva il nome per l'alert
     }
@@ -87,12 +106,17 @@ const MenuBar: React.FC<MenuBarProps> = ({
     } else {
       // Caso generico di fallimento non gestito specificamente (es. errore in applyProfileConfiguration)
       console.error('[MenuBar] Failed to load profile for an unknown reason.');
-      setMissingModsList(['Errore sconosciuto durante il caricamento del profilo.']);
+      setMissingModsList([
+        'Errore sconosciuto durante il caricamento del profilo.',
+      ]);
       setIsMissingModsAlertOpen(true);
     }
   };
 
-  const handleCreateProfileInDialog = async (name: string, description?: string) => {
+  const handleCreateProfileInDialog = async (
+    name: string,
+    description?: string
+  ) => {
     try {
       const newProfile = await profileService.createProfile(name, description);
       console.log('[MenuBar] Profile created via dialog:', newProfile);
@@ -110,18 +134,29 @@ const MenuBar: React.FC<MenuBarProps> = ({
       console.log(`[MenuBar] Profile ${profileIdToDelete} deleted via dialog.`);
       refreshProfilesFromStore(); // Aggiorna la UI dopo l'eliminazione
     } catch (error) {
-      console.error(`[MenuBar] Error deleting profile ${profileIdToDelete} from dialog:`, error);
+      console.error(
+        `[MenuBar] Error deleting profile ${profileIdToDelete} from dialog:`,
+        error
+      );
       throw error;
     }
   };
 
-  const handleRenameProfileInDialog = async (profileIdToRename: string, newName: string) => {
+  const handleRenameProfileInDialog = async (
+    profileIdToRename: string,
+    newName: string
+  ) => {
     try {
       await profileService.renameProfile(profileIdToRename, newName);
-      console.log(`[MenuBar] Profile ${profileIdToRename} renamed to "${newName}" via dialog.`);
+      console.log(
+        `[MenuBar] Profile ${profileIdToRename} renamed to "${newName}" via dialog.`
+      );
       refreshProfilesFromStore(); // Aggiorna la UI dopo la rinomina
     } catch (error) {
-      console.error(`[MenuBar] Error renaming profile ${profileIdToRename} from dialog:`, error);
+      console.error(
+        `[MenuBar] Error renaming profile ${profileIdToRename} from dialog:`,
+        error
+      );
       throw error;
     }
   };
@@ -133,6 +168,26 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
   const handleOpenLink = (url: string) => {
     window.electronAPI.openExternalLink(url);
+  };
+
+  const handleRefreshClick = async () => {
+    if (isRefreshing) return; // Previene click multipli
+
+    setIsRefreshing(true);
+    const minAnimationTime = 500; // Millisecondi
+    const startTime = Date.now();
+
+    try {
+      await onRefreshMods();
+    } finally {
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = minAnimationTime - elapsedTime;
+
+      if (remainingTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingTime));
+      }
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -170,10 +225,16 @@ const MenuBar: React.FC<MenuBarProps> = ({
             variant="ghost"
             color="neutral"
             size="icon"
-            onClick={onRefreshMods}
-            title="Refresh Mod List"
+            onClick={handleRefreshClick}
+            disabled={isRefreshing}
+            title={t('menuBar.refreshModsTooltip')}
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw
+              className={cn(
+                'h-4 w-4 transition-all duration-200',
+                isRefreshing && 'animate-spin-slow'
+              )}
+            />
           </Button>
 
           {/* Pulsante per resettare il percorso - SOLO SVILUPPO */}
@@ -195,10 +256,10 @@ const MenuBar: React.FC<MenuBarProps> = ({
             color="neutral"
             size="sm"
             onClick={onSettingsClick}
-            title="Open Settings"
+            title={t('menuBar.settingsTooltip')}
           >
             <Settings className="h-4 w-4 mr-1" />
-            Settings
+            {t('menuBar.settingsButton')}
           </Button>
         </div>
       </div>
@@ -213,7 +274,10 @@ const MenuBar: React.FC<MenuBarProps> = ({
       />
 
       {/* AlertDialog per i mod mancanti */}
-      <AlertDialog open={isMissingModsAlertOpen} onOpenChange={setIsMissingModsAlertOpen}>
+      <AlertDialog
+        open={isMissingModsAlertOpen}
+        onOpenChange={setIsMissingModsAlertOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center">
@@ -221,7 +285,13 @@ const MenuBar: React.FC<MenuBarProps> = ({
               {t('menuBar.missingModsAlert.title')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              <span dangerouslySetInnerHTML={{ __html: t('menuBar.missingModsAlert.descriptionPart1', { loadingProfileName }) }} />
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: t('menuBar.missingModsAlert.descriptionPart1', {
+                    loadingProfileName,
+                  }),
+                }}
+              />
               <ul className="list-disc list-inside mt-2 max-h-40 overflow-y-auto bg-neutral-700 p-2 rounded">
                 {missingModsList.map((modName, index) => (
                   <li key={index} className="text-sm">

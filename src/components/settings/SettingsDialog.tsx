@@ -23,7 +23,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.tsx";
+} from '@/components/ui/select.tsx';
 import { FolderCog } from 'lucide-react';
 
 /**
@@ -47,14 +47,17 @@ interface SettingsDialogProps {
  * SettingsDialog component allows users to configure application settings,
  * such as the InZOI game folder path and the mod staging directory path.
  */
-const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange }) => {
+const SettingsDialog: React.FC<SettingsDialogProps> = ({
+  isOpen,
+  onOpenChange,
+}) => {
   const [gameFolderPath, setGameFolderPath] = useState<string>('');
   const [stagingPathConfig, setStagingPathConfig] =
     useState<StagingPathConfig | null>(null);
   const [isLoadingGamePath, setIsLoadingGamePath] = useState<boolean>(true);
   const [isLoadingStagingPath, setIsLoadingStagingPath] =
     useState<boolean>(true);
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   /**
    * Fetches the current game folder path from the main process.
@@ -65,16 +68,16 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
       const path = await window.electronAPI.getGameFolderPath();
       setGameFolderPath(path || '');
       if (!path) {
-        toast.info('Game Folder Path', {
-          description: 'The game folder path is not yet set.',
+        toast.info(t('settings.gamePathToastTitle'), {
+          description: t('settings.gamePathNotSetToastDescription'),
         });
       }
     } catch (error) {
       console.error('Error fetching game folder path:', error);
-      toast.error('Error Fetching Game Path', {
-        description: 'Could not retrieve the game folder path.',
+      toast.error(t('settings.errorFetchingGamePathToastTitle'), {
+        description: t('settings.errorFetchingGamePathToastDescription'),
       });
-      setGameFolderPath('Error retrieving path');
+      setGameFolderPath(t('settings.errorRetrievingPath'));
     }
     setIsLoadingGamePath(false);
   }, []);
@@ -89,8 +92,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
       setStagingPathConfig(config);
     } catch (error) {
       console.error('Error fetching staging path config:', error);
-      toast.error('Error Fetching Staging Path Config', {
-        description: 'Could not retrieve the mod staging path configuration.',
+      toast.error(t('settings.errorFetchingStagingPathConfigToastTitle'), {
+        description: t(
+          'settings.errorFetchingStagingPathConfigToastDescription'
+        ),
       });
       setStagingPathConfig(null);
     }
@@ -115,20 +120,23 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
           await window.electronAPI.saveGameFolderPath(selectedPath);
         if (result.success) {
           setGameFolderPath(result.path || '');
-          toast.success('Game Folder Path Updated', {
-            description: `Path set to: ${result.path}`,
+          toast.success(t('settings.gamePathUpdatedToastTitle'), {
+            description: t('settings.pathSetToToastDescription', {
+              path: result.path,
+            }),
           });
         } else {
-          toast.error('Failed to Update Game Folder Path', {
-            description: result.error || 'An unknown error occurred.',
+          toast.error(t('settings.failedToUpdateGamePathToastTitle'), {
+            description: result.error || t('settings.unknownErrorOccurred'),
           });
         }
       }
     } catch (error) {
       console.error('Error selecting/saving game folder path:', error);
-      toast.error('Error Updating Game Path', {
-        description:
-          'An unexpected error occurred while updating the game folder path.',
+      toast.error(t('settings.errorUpdatingGamePathToastTitle'), {
+        description: t(
+          'settings.unexpectedErrorUpdatingGamePathToastDescription'
+        ),
       });
     }
   };
@@ -141,23 +149,26 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
       const result = await window.electronAPI.setModStagingPath();
       if (result.success && result.path) {
         fetchStagingPathConfig(); // Refresh the config
-        toast.success('Mod Staging Directory Updated', {
-          description: `Path set to: ${result.path}`,
+        toast.success(t('settings.stagingPathUpdatedToastTitle'), {
+          description: t('settings.pathSetToToastDescription', {
+            path: result.path,
+          }),
         });
       } else if (
         result.error &&
-        result.error !== 'Directory selection canceled.'
+        result.error !== 'Directory selection canceled.' // Reverted to original string as this is an internal error message not meant for translation
       ) {
         // Only show error if it wasn't a cancellation
-        toast.error('Failed to Update Staging Directory', {
-          description: result.error || 'An unknown error occurred.',
+        toast.error(t('settings.failedToUpdateStagingPathToastTitle'), {
+          description: result.error || t('settings.unknownErrorOccurred'),
         });
       }
     } catch (error) {
       console.error('Error selecting/saving mod staging directory:', error);
-      toast.error('Error Updating Staging Directory', {
-        description:
-          'An unexpected error occurred while updating the staging directory.',
+      toast.error(t('settings.errorUpdatingStagingPathToastTitle'), {
+        description: t(
+          'settings.unexpectedErrorUpdatingStagingPathToastDescription'
+        ),
       });
     }
   };
@@ -170,27 +181,34 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
       const result = await window.electronAPI.clearModStagingPath();
       if (result.success) {
         fetchStagingPathConfig(); // Refresh the config
-        toast.success('Mod Staging Directory Reset', {
-          description: 'Path has been reset to the default.',
+        toast.success(t('settings.stagingPathResetToastTitle'), {
+          description: t('settings.stagingPathResetToastDescription'),
         });
       } else {
-        toast.error('Failed to Reset Staging Directory', {
-          description: result.error || 'An unknown error occurred.',
+        toast.error(t('settings.failedToResetStagingPathToastTitle'), {
+          description: result.error || t('settings.unknownErrorOccurred'),
         });
       }
     } catch (error) {
       console.error('Error resetting mod staging directory:', error);
-      toast.error('Error Resetting Staging Directory', {
-        description:
-          'An unexpected error occurred while resetting the staging directory.',
+      toast.error(t('settings.errorResettingStagingPathToastTitle'), {
+        description: t(
+          'settings.unexpectedErrorResettingStagingPathToastDescription'
+        ),
       });
     }
   };
 
   const handleLanguageChange = (newLang: string) => {
     i18n.changeLanguage(newLang);
-    toast.info('Language Changed', {
-      description: `Application language set to ${newLang === 'en' ? 'English' : 'Italiano'}.`,
+    toast.info(t('settings.languageChangedToastTitle'), {
+      description: t('settings.languageSetToToastDescription', {
+        language: t(
+          newLang === 'en'
+            ? 'settings.languageEnglish'
+            : 'settings.languageItalian'
+        ),
+      }),
     });
   };
 
@@ -200,32 +218,34 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
         <DialogHeader>
           <DialogTitle className="flex items-center text-xl">
             <FolderCog className="h-6 w-6 mr-3 text-slate-300" />
-            Settings
+            {t('settings.title')}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Manage your InZOI Mod Manager preferences and paths.
+            {t('settings.description')}
           </DialogDescription>
         </DialogHeader>
-        
+
         <ScrollArea className="max-h-[60vh] pr-6">
           <div className="grid gap-6 py-4">
             {/* Game Path Configuration */}
             <section>
               <h3 className="text-lg font-medium text-slate-200 mb-1">
-                Game Path Configuration
+                {t('settings.gamePathConfigTitle')}
               </h3>
               <p className="text-sm text-slate-400 mb-3">
-                Set the main installation directory for InZOI.
+                {t('settings.gamePathConfigDescription')}
               </p>
               <div className="flex items-center space-x-2 mb-2">
                 <Input
                   type="text"
                   readOnly
                   value={
-                    isLoadingGamePath ? 'Loading...' : gameFolderPath || 'Not Set'
+                    isLoadingGamePath
+                      ? t('settings.loading')
+                      : gameFolderPath || t('settings.notSet')
                   }
                   className="flex-grow bg-neutral-700 border-neutral-600 text-slate-300 placeholder:text-neutral-500"
-                  placeholder="Path to your InZOI game folder"
+                  placeholder={t('settings.gamePathInputPlaceholder')}
                 />
                 <Button
                   onClick={handleSelectGameFolder}
@@ -233,12 +253,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
                   color="neutral"
                   className="border-neutral-600 hover:bg-neutral-700"
                 >
-                  Change Folder
+                  {t('settings.changeFolderButton')}
                 </Button>
               </div>
               <p className="text-xs text-slate-500">
-                This is where the game executable is located (e.g.,
-                C:\\Games\\inzoi).
+                {t('settings.gamePathHint')}
               </p>
             </section>
 
@@ -247,11 +266,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
             {/* Mod Staging Path Configuration */}
             <section>
               <h3 className="text-lg font-medium text-slate-200 mb-1">
-                Mod Staging Path Configuration
+                {t('settings.stagingPathConfigTitle')}
               </h3>
               <p className="text-sm text-slate-400 mb-3">
-                This is a temporary folder where mods are prepared before being
-                enabled. By default, it's inside the app's data directory.
+                {t('settings.stagingPathConfigDescription')}
               </p>
               <div className="flex items-center space-x-2 mb-2">
                 <Input
@@ -259,11 +277,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
                   readOnly
                   value={
                     isLoadingStagingPath
-                      ? 'Loading...'
-                      : stagingPathConfig?.activePath || 'Loading...'
+                      ? t('settings.loading')
+                      : stagingPathConfig?.activePath || t('settings.loading') // Or a more specific "Not Set" if applicable
                   }
                   className="flex-grow bg-neutral-700 border-neutral-600 text-slate-300 placeholder:text-neutral-500"
-                  placeholder="Path for staging mods"
+                  placeholder={t('settings.stagingPathInputPlaceholder')}
                 />
                 <Button
                   onClick={handleSelectStagingFolder}
@@ -271,20 +289,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
                   color="neutral"
                   className="border-neutral-600 hover:bg-neutral-700"
                 >
-                  Set Custom Folder
+                  {t('settings.setCustomFolderButton')}
                 </Button>
               </div>
               <div className="flex justify-between mb-3">
                 <p className="text-xs text-slate-500">
-                  If you set a custom folder, ensure it has write permissions.
-                  Resetting will use the default location.
+                  {t('settings.stagingPathHint')}
                 </p>
                 <Button
                   onClick={handleResetStagingPath}
                   variant="link"
                   className="text-xs text-amber-500 hover:text-amber-400 px-0 h-auto"
                 >
-                  Reset to Default
+                  {t('settings.resetToDefaultButton')}
                 </Button>
               </div>
             </section>
@@ -295,42 +312,56 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onOpenChange })
             <section>
               <ThemeSelector />
             </section>
-          
+
             <Separator className="bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
-          
+
             {/* Language Selection */}
             <section>
               <h3 className="text-lg font-medium text-slate-200 mb-1">
-                Language Selection
+                {t('settings.languageSelectionTitle')}
               </h3>
               <p className="text-sm text-slate-400 mb-3">
-                Choose the application language.
+                {t('settings.languageSelectionDescription')}
               </p>
               <div className="grid grid-cols-2 items-center gap-4">
-                <Label className="text-slate-300 text-right">Language</Label>
+                <Label className="text-slate-300 text-right">
+                  {t('settings.languageLabel')}
+                </Label>
                 <Select
                   value={i18n.language.split('-')[0]}
                   onValueChange={handleLanguageChange}
                 >
                   <SelectTrigger className="w-full bg-neutral-700 border-neutral-600 text-slate-300">
-                    <SelectValue placeholder="Select language" />
+                    <SelectValue
+                      placeholder={t('settings.selectLanguagePlaceholder')}
+                    />
                   </SelectTrigger>
                   <SelectContent className="bg-neutral-700 border-neutral-600 text-slate-300">
-                    <SelectItem value="en" className="hover:bg-neutral-600 focus:bg-neutral-600">English</SelectItem>
-                    <SelectItem value="it" className="hover:bg-neutral-600 focus:bg-neutral-600">Italiano</SelectItem>
+                    <SelectItem
+                      value="en"
+                      className="hover:bg-neutral-600 focus:bg-neutral-600"
+                    >
+                      {t('settings.languageEnglish')}
+                    </SelectItem>
+                    <SelectItem
+                      value="it"
+                      className="hover:bg-neutral-600 focus:bg-neutral-600"
+                    >
+                      {t('settings.languageItalian')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </section>
           </div>
         </ScrollArea>
-        
+
         <DialogFooter className="pt-6 border-t border-neutral-700/60">
           <Button
             onClick={() => onOpenChange(false)}
             className="bg-green-600 hover:bg-green-500 text-white"
           >
-            Done
+            {t('settings.doneButton')}
           </Button>
         </DialogFooter>
       </DialogContent>
