@@ -110,6 +110,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
             const enabledModItem: ModItem = {
               ...modToEnable,
               activePath: result.newPath, // Salva il percorso attivo nella directory ~mods
+              numericPrefix: result.numericPrefix, // Salva il prefisso numerico restituito
             };
             setEnabledMods((prev) => [...prev, enabledModItem]);
             setDisabledMods((prev) => prev.filter((mod) => mod.id !== modId));
@@ -162,10 +163,14 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
             `[ContextMenu] Extracted stagingDirectoryName for disable: ${stagingDirectoryName}, isVirtualMod: ${isVirtualMod}`
           );
 
-          const disableResult = await window.electronAPI.disableMod(
-            stagingDirectoryName,
-            isVirtualMod
+          const numericPrefixToUse = modToDisable.numericPrefix; // Questa riga potrebbe non essere più necessaria qui se l'oggetto intero viene passato
+          console.log(
+            `[ContextMenu] Disabling mod (object to pass):`,
+            modToDisable
           );
+          // Passa l'intero oggetto modToDisable
+          const disableResult =
+            await window.electronAPI.disableMod(modToDisable);
 
           if (disableResult.success) {
             toast.success(
@@ -269,10 +274,19 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           console.log(
             `[Rename] Disabling mod "${modToRename.name}": stagingDirectoryName: ${stagingDirectoryName}, isVirtualMod: ${isVirtualMod}`
           );
-          const disableResult = await window.electronAPI.disableMod(
-            stagingDirectoryName,
-            isVirtualMod
-          );
+          // Per la rinomina, se il mod era attivo, il numericPrefix non è strettamente necessario
+          // per la disableMod chiamata qui, perché la cartella verrà comunque rimossa in base al nome.
+          // Tuttavia, per coerenza con handleToggleEnableMod, potremmo passarlo se disponibile.
+          // Ma dato che il mod viene poi spostato ai disabilitati (perdendo activePath e numericPrefix),
+          // non è critico qui come lo è per la disabilitazione diretta.
+          // Per ora, manteniamo la chiamata a disableMod senza numericPrefix qui,
+          // poiché l'obiettivo principale è pulire la cartella ~mods prima della rinomina dello staging.
+          // L'handler disableMod in main dovrebbe essere in grado di gestire l'assenza di numericPrefix
+          // se isVirtualMod è false, cercando la cartella con qualsiasi prefisso.
+          // La modifica critica è per la disabilitazione utente diretta.
+          // Passa l'intero oggetto modToRename
+          const disableResult =
+            await window.electronAPI.disableMod(modToRename);
           if (disableResult.success) {
             toast.info(
               `Mod "${oldName}" was active and has been disabled from game folder.`
@@ -741,9 +755,12 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           `[ModManagerLayout] Synchronization successful. Final lists - Disabled: ${finalDisabledMods.length}, Enabled: ${finalEnabledMods.length}`
         );
       } else {
-        toast.error(t('toast.modListRefreshedError', { error: syncResult.error }), {
-          id: toastId,
-        });
+        toast.error(
+          t('toast.modListRefreshedError', { error: syncResult.error }),
+          {
+            id: toastId,
+          }
+        );
         console.error(
           '[ModManagerLayout] Failed to synchronize mod states:',
           syncResult.error
@@ -752,9 +769,12 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         setEnabledMods([]);
       }
     } catch (error: any) {
-      toast.error(t('toast.modListRefreshCriticalError', { errorMessage: error.message }), {
-        id: toastId,
-      });
+      toast.error(
+        t('toast.modListRefreshCriticalError', { errorMessage: error.message }),
+        {
+          id: toastId,
+        }
+      );
       console.error(
         '[ModManagerLayout] Critical error during mod list refresh:',
         error
@@ -950,9 +970,13 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           >
             <DialogContent className="sm:max-w-[425px] bg-neutral-800 border-neutral-700 text-slate-100">
               <DialogHeader>
-                <DialogTitle className="text-slate-50">{t('modManager.renameDialog.title')}</DialogTitle>
+                <DialogTitle className="text-slate-50">
+                  {t('modManager.renameDialog.title')}
+                </DialogTitle>
                 <DialogDescription className="text-neutral-400">
-                  {t('modManager.renameDialog.description', { modName: modToRename.name })}
+                  {t('modManager.renameDialog.description', {
+                    modName: modToRename.name,
+                  })}
                   <br />
                   {t('modManager.renameDialog.descriptionDetails')}
                 </DialogDescription>
@@ -970,7 +994,9 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
                     value={newModName}
                     onChange={(e) => setNewModName(e.target.value)}
                     className="col-span-3 bg-neutral-700 border-neutral-600 text-slate-100 focus:ring-sky-500"
-                    placeholder={t('modManager.renameDialog.newNamePlaceholder')}
+                    placeholder={t(
+                      'modManager.renameDialog.newNamePlaceholder'
+                    )}
                   />
                 </div>
               </div>

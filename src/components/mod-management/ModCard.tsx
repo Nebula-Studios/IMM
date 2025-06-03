@@ -9,7 +9,13 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '../ui/context-menu.tsx';
-import { PlayCircle, PauseCircle, FileEdit, Trash2, GripVertical } from 'lucide-react'; // Rimosso ArrowUpCircle, ArrowDownCircle, Aggiunto GripVertical
+import {
+  PlayCircle,
+  PauseCircle,
+  FileEdit,
+  Trash2,
+  GripVertical,
+} from 'lucide-react'; // Rimosso ArrowUpCircle, ArrowDownCircle, Aggiunto GripVertical
 
 /**
  * @file ModCard.tsx
@@ -22,6 +28,7 @@ export interface ModItem {
   name: string; // The display name of the mod (e.g., filename)
   path: string; // Absolute path to the mod file in staging
   activePath?: string; // Absolute path to the mod folder in the game's ~mods directory, if enabled
+  numericPrefix?: string; // Prefisso numerico (es. "001") usato per i file del mod quando abilitato (solo per mod non virtuali)
 }
 
 interface ModCardProps {
@@ -65,7 +72,7 @@ const ModCard: React.FC<ModCardProps> = ({
     transition,
     isDragging, // Per feedback visivo
   } = useSortable({ id: mod.id }); // Rimosso: disabled: type === 'disabled'. Tutti i mod sono ora trascinabili.
-                                  // Il riordino è controllato da SortableContext e handleDragEnd.
+  // Il riordino è controllato da SortableContext e handleDragEnd.
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -74,13 +81,18 @@ const ModCard: React.FC<ModCardProps> = ({
     zIndex: isDragging ? 100 : 'auto', // Assicura che l'elemento trascinato sia sopra gli altri
   };
 
-  const toggleLabel = type === 'disabled' ? t('modCard.contextMenu.enable') : t('modCard.contextMenu.disable');
+  const toggleLabel =
+    type === 'disabled'
+      ? t('modCard.contextMenu.enable')
+      : t('modCard.contextMenu.disable');
   const ToggleIcon = type === 'disabled' ? PlayCircle : PauseCircle;
   const iconColor = type === 'disabled' ? 'text-green-500' : 'text-yellow-500';
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger disabled={isDragging}> {/* Disabilita il context menu durante il drag */}
+      <ContextMenuTrigger disabled={isDragging}>
+        {' '}
+        {/* Disabilita il context menu durante il drag */}
         <div
           ref={setNodeRef}
           style={style}
@@ -92,7 +104,12 @@ const ModCard: React.FC<ModCardProps> = ({
         >
           <div className="flex items-center flex-grow truncate">
             {/* L'handle di trascinamento (GripVertical) ora è sempre visibile se si vuole, o condizionato diversamente */}
-            <span {...attributes} {...listeners} className="p-1 mr-2 cursor-grab" title={t('modCard.dragHandleTooltip')}>
+            <span
+              {...attributes}
+              {...listeners}
+              className="p-1 mr-2 cursor-grab"
+              title={t('modCard.dragHandleTooltip')}
+            >
               <GripVertical className="h-5 w-5 text-neutral-400" />
             </span>
             <p className="text-sm text-slate-100 truncate" title={mod.name}>
@@ -125,7 +142,9 @@ const ModCard: React.FC<ModCardProps> = ({
           className="focus:bg-red-700/20"
         >
           <Trash2 className="mr-2 h-4 w-4 text-red-500" />
-          <span className="text-red-500">{t('modCard.contextMenu.remove')}</span>
+          <span className="text-red-500">
+            {t('modCard.contextMenu.remove')}
+          </span>
           {/* <ContextMenuShortcut>⌘⌫</ContextMenuShortcut> */}
         </ContextMenuItem>
       </ContextMenuContent>

@@ -29,7 +29,7 @@ export interface IElectronAPI {
     bitfixFolderExists?: boolean;
     error?: string;
   }>;
-installModEnabler: () => Promise<{
+  installModEnabler: () => Promise<{
     success: boolean;
     error?: string;
   }>;
@@ -49,10 +49,14 @@ installModEnabler: () => Promise<{
   enableMod: (
     modPath: string,
     modName: string
-  ) => Promise<{ success: boolean; newPath?: string; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    newPath?: string;
+    numericPrefix?: string;
+    error?: string;
+  }>;
   disableMod: (
-    modName: string,
-    isVirtualMod?: boolean
+    modToDisable: ModItem
   ) => Promise<{ success: boolean; error?: string }>;
   loadModLists: () => Promise<{
     success: boolean;
@@ -121,30 +125,53 @@ installModEnabler: () => Promise<{
   }>;
 
   // --- Profile Management IPC ---
-  getUserDataPath: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  getUserDataPath: () => Promise<{
+    success: boolean;
+    path?: string;
+    error?: string;
+  }>;
   getProfilePaths: () => Promise<{
     success: boolean;
     paths?: { profilesDir: string; profilesFilePath: string };
     error?: string;
   }>;
-  profilesAccess: (filePath: string) => Promise<{ success: boolean; exists: boolean; error?: string }>;
-  profilesMkdir: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
-  profilesReadFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
-  profilesWriteFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
+  profilesAccess: (
+    filePath: string
+  ) => Promise<{ success: boolean; exists: boolean; error?: string }>;
+  profilesMkdir: (
+    dirPath: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  profilesReadFile: (
+    filePath: string
+  ) => Promise<{ success: boolean; content?: string; error?: string }>;
+  profilesWriteFile: (
+    filePath: string,
+    content: string
+  ) => Promise<{ success: boolean; error?: string }>;
   // --- END Profile Management IPC ---
 
   // --- Generic File Operations (Import/Export Profiles) ---
-  showSaveDialog: (options: Electron.SaveDialogOptions) => Promise<Electron.SaveDialogReturnValue>;
-  showOpenDialog: (options: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
-  readFileContent: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string; code?: string }>;
-  writeFileContent: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
+  showSaveDialog: (
+    options: Electron.SaveDialogOptions
+  ) => Promise<Electron.SaveDialogReturnValue>;
+  showOpenDialog: (
+    options: Electron.OpenDialogOptions
+  ) => Promise<Electron.OpenDialogReturnValue>;
+  readFileContent: (filePath: string) => Promise<{
+    success: boolean;
+    content?: string;
+    error?: string;
+    code?: string;
+  }>;
+  writeFileContent: (
+    filePath: string,
+    content: string
+  ) => Promise<{ success: boolean; error?: string }>;
   // --- END Generic File Operations ---
 
   // Theme functions
   getTheme: () => Promise<'light' | 'dark' | 'system'>;
-  setTheme: (
-    themeValue: 'light' | 'dark' | 'system'
-  ) => Promise<{
+  setTheme: (themeValue: 'light' | 'dark' | 'system') => Promise<{
     success: boolean;
     theme?: 'light' | 'dark' | 'system';
     error?: string;

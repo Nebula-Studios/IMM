@@ -19,7 +19,9 @@ interface ModItemForStore {
   id: string;
   name: string;
   path: string; // Percorso di staging del file .pak principale
-  activePath?: string; // Percorso della cartella del mod nella directory ~mods del gioco (es. C:\...\~mods\000_NomeMod)
+  activePath?: string; // Percorso della cartella del mod nella directory ~mods del gioco (es. C:\...\~mods\000_NomeMod) O la directory ~mods stessa per i non-virtuali.
+  numericPrefix?: string; // Prefisso numerico (es. "001") usato per i file del mod quando abilitato (solo per mod non virtuali)
+  isNonVirtual?: boolean; // True se il mod è un insieme di file NNN_* nella root di ~mods, false/undefined se è una cartella NNN_ModName.
 }
 
 interface StoreSchema {
@@ -47,6 +49,7 @@ const store = new Store<StoreSchema>({
           id: { type: 'string' },
           name: { type: 'string' },
           path: { type: 'string' },
+          isNonVirtual: { type: ['boolean', 'null'], default: false }, // Aggiunto
           // activePath non è memorizzato per i mod disabilitati
         },
         required: ['id', 'name', 'path'],
@@ -61,7 +64,9 @@ const store = new Store<StoreSchema>({
           id: { type: 'string' },
           name: { type: 'string' },
           path: { type: 'string' },
-          activePath: { type: 'string' }, // Può essere undefined se non ancora determinato o se il mod è stato disabilitato
+          activePath: { type: ['string', 'null'] }, // Può essere undefined se non ancora determinato o se il mod è stato disabilitato
+          numericPrefix: { type: ['string', 'null'] }, // Aggiunto per memorizzare il prefisso
+          isNonVirtual: { type: ['boolean', 'null'], default: false }, // Aggiunto
         },
         required: ['id', 'name', 'path'], // activePath non è required, può essere aggiunto dinamicamente
       },
@@ -1156,7 +1161,7 @@ ipcMain.handle(
         const itemPath = nodePath.join(gameModsPath, item);
         try {
           // Considera solo i file per determinare l'indice, non le directory
-          if (fs.lstatSync(itemPath).isFile()) { 
+          if (fs.lstatSync(itemPath).isFile()) {
             const match = item.match(/^(\d{3})_/); // Regex per estrarre NNN dal nome del file
             if (match && match[1]) {
               const currentIndex = parseInt(match[1], 10);
@@ -1195,55 +1200,83 @@ ipcMain.handle(
       let allFilesSkipped = true;
 
       for (const fileName of filesToCopy) {
-        const sourceFilePath = nodePath.join(sourceModStagingDirectory, fileName);
-        
+        const sourceFilePath = nodePath.join(
+          sourceModStagingDirectory,
+          fileName
+        );
+
         if (fs.lstatSync(sourceFilePath).isFile()) {
           allFilesSkipped = false;
           const targetFileName = `${numericPrefix}_${fileName}`;
-          const destFilePathInGame = nodePath.join(gameModsPath, targetFileName);
+          const destFilePathInGame = nodePath.join(
+            gameModsPath,
+            targetFileName
+          );
 
           log.info(
-            `[Main ENABLE_MOD] Copying file from "${sourceFilePath}" to "${destFilePathInGame}"`
+            `[Main ENABLE_MOD - File Operation] Preparing to copy individual file "${fileName}" from staging "${sourceFilePath}" to game mods directory (root level) as "${targetFileName}" at "${destFilePathInGame}".`
           );
           await fsPromises.copyFile(sourceFilePath, destFilePathInGame);
           copiedFilePaths.push(destFilePathInGame);
           log.info(
-            `[Main ENABLE_MOD] Successfully copied file "${fileName}" to "${destFilePathInGame}".`
+            `[Main ENABLE_MOD - File Operation] Successfully copied individual file "${fileName}" to "${destFilePathInGame}". It is NOT placed in a subdirectory within ~mods.`
           );
+
+          // Ora elimina il file originale dalla directory di staging
+          try {
+            await fsPromises.unlink(sourceFilePath);
+            log.info(
+              `[Main ENABLE_MOD - File Operation] Successfully deleted original file "${fileName}" from staging directory "${sourceFilePath}".`
+            );
+          } catch (deleteError: any) {
+            log.error(
+              `[Main ENABLE_MOD - File Operation] Failed to delete original file "${fileName}" from staging directory "${sourceFilePath}": ${deleteError.message}`
+            );
+            // Non consideriamo questo un errore fatale per l'abilitazione del mod,
+            // ma è importante loggarlo. Il file è stato copiato.
+          }
         } else {
-          log.info(`[Main ENABLE_MOD] Skipping directory: "${fileName}" in staging folder "${sourceModStagingDirectory}".`);
+          log.info(
+            `[Main ENABLE_MOD] Skipping directory: "${fileName}" in staging folder "${sourceModStagingDirectory}".`
+          );
         }
       }
 
       if (allFilesSkipped && filesToCopy.length > 0) {
-        log.warn(`[Main ENABLE_MOD] Mod directory ${sourceModStagingDirectory} for mod "${modName}" contained only subdirectories. No files were copied.`);
+        log.warn(
+          `[Main ENABLE_MOD] Mod directory ${sourceModStagingDirectory} for mod "${modName}" contained only subdirectories. No files were copied.`
+        );
         return {
           success: false, // Considerato un fallimento se nessun file idoneo viene trovato
-          error: 'Mod directory contained only subdirectories or was empty. No files copied.',
+          error:
+            'Mod directory contained only subdirectories or was empty. No files copied.',
           copiedFiles: [],
-          numericPrefix: numericPrefix
+          numericPrefix: numericPrefix,
         };
-      } else if (copiedFilePaths.length === 0 && filesToCopy.length === 0){
-        log.warn(`[Main ENABLE_MOD] Mod directory ${sourceModStagingDirectory} for mod "${modName}" was empty. No files were copied.`);
-         return {
+      } else if (copiedFilePaths.length === 0 && filesToCopy.length === 0) {
+        log.warn(
+          `[Main ENABLE_MOD] Mod directory ${sourceModStagingDirectory} for mod "${modName}" was empty. No files were copied.`
+        );
+        return {
           success: false, // Considerato un fallimento se la directory è vuota
           error: 'Mod staging directory was empty. No files copied.',
           copiedFiles: [],
-          numericPrefix: numericPrefix
+          numericPrefix: numericPrefix,
         };
       }
-      
+
       log.info(
         `[Main] Successfully copied ${copiedFilePaths.length} file(s) for mod "${modName}" to "${gameModsPath}" with prefix "${numericPrefix}".`
       );
 
-      return { 
-        success: true, 
-        newPath: gameModsPath, // Il "newPath" ora si riferisce alla directory ~mods generale
-        numericPrefix: numericPrefix, // Il prefisso usato per i file di questa mod
-        copiedFilePaths: copiedFilePaths // L'elenco dei file effettivamente copiati
+      return {
+        success: true,
+        newPath: gameModsPath, // La directory ~mods generale
+        numericPrefix: numericPrefix, // Il prefisso usato
+        copiedFilePaths: copiedFilePaths,
+        originalStagingId: modStagingPakPath, // ID di staging originale
+        isNonVirtual: true, // Flag per indicare che è un mod non virtuale
       };
-
     } catch (error: any) {
       log.error(`[Enable Mod] Error enabling mod ${modName}:`, error);
       return {
@@ -1254,185 +1287,202 @@ ipcMain.handle(
   }
 );
 
+// Helper function to check if a directory exists
+async function directoryExists(path: string): Promise<boolean> {
+  try {
+    const stats = await fsPromises.stat(path);
+    return stats.isDirectory();
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      return false;
+    }
+    // Non rilanciare l'errore qui, lascia che il chiamante decida.
+    // O, se si vuole essere più specifici, loggare e restituire false.
+    log.warn(`[directoryExists] Error checking path ${path}: ${error.message}`);
+    return false; // Considera un errore di accesso come "non esiste" per semplicità
+  }
+}
+
+// Helper function to check if a file exists
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    const stats = await fsPromises.stat(path);
+    return stats.isFile();
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      return false;
+    }
+    log.warn(`[fileExists] Error checking path ${path}: ${error.message}`);
+    return false; // Considera un errore di accesso come "non esiste"
+  }
+}
+
 ipcMain.handle(
   'disable-mod',
   async (
     event,
-    baseModNameInput: string, // Questo potrebbe essere il nome della mod o, per i virtuali, il nome della cartella NNN_NomeMod
-    isVirtualModParam: boolean = false,
-    // NUOVO PARAMETRO: Il prefisso numerico usato per i file di questa mod quando è stata abilitata.
-    // Necessario solo se isVirtualModParam è false.
-    numericPrefixToUse?: string | null 
+    modToDisable: ModItemForStore // Oggetto completo dal renderer
   ) => {
     log.info(
-      `[Disable Mod - ENTRY] Received baseModNameInput: "${baseModNameInput}", isVirtualModParam: ${isVirtualModParam}, numericPrefixToUse: "${numericPrefixToUse}"`
+      `[Main DISABLE_MOD] Richiesta ricevuta per disabilitare il mod: ${JSON.stringify(modToDisable)}`
     );
 
-    const gameModsPath = await getGameModsPath();
-    if (!gameModsPath) {
-      return { success: false, error: 'Game folder path not configured.' };
+    const gameModsDir = await getGameModsPath();
+    if (!gameModsDir) {
+      log.error('[Main DISABLE_MOD] Directory ~mods non trovata.');
+      return { success: false, error: 'Game mods directory not found' };
     }
 
-    if (!fs.existsSync(gameModsPath)) {
-      log.warn(
-        `[Disable Mod] Game mods directory ${gameModsPath} does not exist. Nothing to disable.`
-      );
-      return { success: true, message: 'Game mods directory does not exist.' };
-    }
+    // Recupera l'entry completa del mod dallo store se esiste (per avere isNonVirtual e numericPrefix aggiornati)
+    const enabledModsFromStore = store.get('savedEnabledMods', []);
+    const storedModEntry = enabledModsFromStore.find(
+      (mod) => mod.id === modToDisable.id
+    );
 
-    try {
-      if (isVirtualModParam) {
-        // Logica per i MOD VIRTUALI (gestiti come cartelle NNN_NomeMod)
-        let folderNameToFind = baseModNameInput;
-        let fullPathToModFolderInGame: string;
+    // Determina isNonVirtual e actualNumericPrefix usando i dati dallo store se disponibili, altrimenti dall'input
+    // Diamo priorità allo store perché riflette lo stato "attivo" più recente.
+    const isNonVirtualEffective =
+      storedModEntry?.isNonVirtual ?? modToDisable.isNonVirtual ?? false;
+    let actualNumericPrefix =
+      storedModEntry?.numericPrefix ?? modToDisable.numericPrefix ?? null;
 
-        // Se baseModNameInput non inizia già con NNN_, o se vogliamo essere sicuri di trovare la cartella corretta
-        // anche se baseModNameInput fosse solo il nome base.
-        const sanitizedBaseNameFromInput = sanitizeDirectoryName(baseModNameInput.replace(/^\d{3}_/, '').replace(/\\.pak$/, ''));
-        log.info(`[Disable Mod - Virtual] Sanitized base name from input for search: "${sanitizedBaseNameFromInput}"`);
+    log.info(
+      `[Main DISABLE_MOD] Mod "${modToDisable.name}" (ID: ${modToDisable.id}): isNonVirtual (effective)=${isNonVirtualEffective}, numericPrefix (effective)=${actualNumericPrefix}`
+    );
 
-        const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
-        const foundFolder = itemsInGameModsDir.find(item => {
-          const itemPath = nodePath.join(gameModsPath, item);
-          if (fs.lstatSync(itemPath).isDirectory()) {
-            const match = item.match(/^(\d{3})_(.*)$/);
-            if (match && match[2]) {
-              // Confronta il nome base (match[2]) (sanificato) con sanitizedBaseNameFromInput
-              const currentSanitizedBaseName = sanitizeDirectoryName(match[2]);
-              if (currentSanitizedBaseName.toLowerCase() === sanitizedBaseNameFromInput.toLowerCase()) {
-                return true;
-              }
-            }
-          }
-          return false;
-        });
-
-        if (foundFolder) {
-          folderNameToFind = foundFolder;
-          fullPathToModFolderInGame = nodePath.join(gameModsPath, folderNameToFind);
-          log.info(`[Disable Mod - Virtual] Found matching folder: "${folderNameToFind}"`);
-        } else {
-          // Tentativo finale: se baseModNameInput era già NNN_NomeMod, usalo direttamente ma verifica l'esistenza.
-          if (/^\d{3}_/.test(baseModNameInput)) {
-             folderNameToFind = sanitizeDirectoryName(baseModNameInput); // Assicura che il nome completo sia sanificato
-             fullPathToModFolderInGame = nodePath.join(gameModsPath, folderNameToFind);
-             if (!fs.existsSync(fullPathToModFolderInGame) || !fs.lstatSync(fullPathToModFolderInGame).isDirectory()) {
-                log.warn(`[Disable Mod - Virtual] Input "${baseModNameInput}" looked like NNN_ModName, but directory ${fullPathToModFolderInGame} not found or invalid.`);
-                return { success: true, message: `Virtual mod folder for ${baseModNameInput} not found.` };
-             }
-             log.info(`[Disable Mod - Virtual] Using direct input "${folderNameToFind}" as it seems to be a NNN_ prefixed name and exists.`);
-          } else {
-            log.warn(`[Disable Mod - Virtual] No NNN_ prefixed folder found for base name "${sanitizedBaseNameFromInput}" in ${gameModsPath}.`);
-            return { success: true, message: `Virtual mod folder for ${sanitizedBaseNameFromInput} not found, possibly already removed.` };
-          }
-        }
-        
-        // A questo punto, fullPathToModFolderInGame dovrebbe essere valido se siamo arrivati qui senza return.
-        // La vecchia logica di controllo esistenza è ridondante se la ricerca sopra ha successo e imposta fullPathToModFolderInGame.
-        // Ma la manteniamo per sicurezza se il flusso logico cambia.
-        if (!fs.existsSync(fullPathToModFolderInGame) || !fs.lstatSync(fullPathToModFolderInGame).isDirectory()) {
-          log.warn(
-            `[Disable Mod - Virtual] Directory ${fullPathToModFolderInGame} (derived from ${folderNameToFind}) not found or is not a directory. This shouldn't happen if search was successful.`
-          );
-          return { success: true, message: 'Virtual mod directory became invalid during processing.' };
-        }
-
-        log.info(
-          `[Disable Mod - Virtual] Virtual mod "${folderNameToFind}" detected. Moving from game's ~mods to staging and then removing from ~mods.`
-        );
-        const stagingPath = getCurrentStagingPath();
-        // Estrai il nome base pulito da folderNameToFind (che è NNN_NomeModOriginale)
-        const actualModNameForStaging = folderNameToFind.match(/^\d{3}_(.*)$/)?.[1] || folderNameToFind;
-        const stagingModDirectoryPath = nodePath.join(stagingPath, sanitizeDirectoryName(actualModNameForStaging));
-
-        // 1. Assicurati che la directory di staging genitore esista
-        if (!fs.existsSync(stagingPath)) {
-          await fsPromises.mkdir(stagingPath, { recursive: true });
-        }
-        // 2. Copia la cartella del mod da ~mods allo staging (sovrascrive se esiste)
-        if (fs.existsSync(stagingModDirectoryPath)) {
-          log.warn(
-            `[Disable Mod - Virtual] Staging directory "${stagingModDirectoryPath}" already exists. It will be overwritten.`
-          );
-          await fsPromises.rm(stagingModDirectoryPath, { recursive: true, force: true });
-        }
-        await copyDirRecursive(fullPathToModFolderInGame, stagingModDirectoryPath);
-        log.info(
-          `[Disable Mod - Virtual] Copied "${fullPathToModFolderInGame}" to staging "${stagingModDirectoryPath}".`
-        );
-
-        // 3. Rimuovi la cartella del mod dalla directory ~mods del gioco
-        await fsPromises.rm(fullPathToModFolderInGame, { recursive: true, force: true });
-        log.info(
-          `[Disable Mod - Virtual] Deleted directory ${fullPathToModFolderInGame} from game's ~mods.`
-        );
-        return { success: true };
-
-      } else {
-        // Logica per MOD NON VIRTUALI (gestiti come file NNN_file.ext)
-        if (!numericPrefixToUse) {
-          log.error(
-            '[Disable Mod] numericPrefixToUse is required for non-virtual mods but was not provided. Cannot disable mod.'
-          );
-          return {
-            success: false,
-            error: 'Numeric prefix not provided for a non-virtual mod.',
-          };
-        }
-
-        const prefixPattern = `${numericPrefixToUse}_`;
-        log.info(
-          `[Disable Mod] Disabling non-virtual mod. Scanning for files with prefix "${prefixPattern}" in ${gameModsPath}`
-        );
-
-        const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
-        let filesDeletedCount = 0;
-
-        for (const item of itemsInGameModsDir) {
-          const itemPath = nodePath.join(gameModsPath, item);
-          if (item.startsWith(prefixPattern)) {
-            try {
-              // Verifica se è un file prima di tentare l'eliminazione
-              if (fs.lstatSync(itemPath).isFile()) {
-                await fsPromises.unlink(itemPath);
-                log.info(`[Disable Mod] Deleted file: ${itemPath}`);
-                filesDeletedCount++;
-              } else {
-                log.warn(`[Disable Mod] Item ${itemPath} matches prefix but is not a file. Skipping.`);
-              }
-            } catch (error: any) {
-              log.error(
-                `[Disable Mod] Error deleting file ${itemPath}: ${error.message}`
-              );
-              // Continua a tentare di eliminare altri file corrispondenti
-            }
-          }
-        }
-
-        if (filesDeletedCount === 0) {
-          log.warn(
-            `[Disable Mod] No files found with prefix "${prefixPattern}" in ${gameModsPath}. Mod might have been already disabled or prefix was incorrect.`
-          );
-          return {
-            success: true, // Considerato successo se non c'era nulla da eliminare con quel prefisso
-            message: `No files found with prefix ${prefixPattern}.`,
-          };
-        }
-
-        log.info(
-          `[Disable Mod] Successfully deleted ${filesDeletedCount} file(s) with prefix "${prefixPattern}".`
-        );
-        return { success: true };
-      }
-    } catch (error: any) {
+    if (isNonVirtualEffective && !actualNumericPrefix) {
       log.error(
-        `[Disable Mod] Error disabling mod (base name: "${baseModNameInput}", prefix: "${numericPrefixToUse}"):`,
-        error
+        `[Main DISABLE_MOD] numericPrefix è richiesto per il mod non virtuale "${modToDisable.name}" (ID: ${modToDisable.id}) ma non è stato fornito né trovato nello store. Impossibile disabilitare.`
       );
       return {
         success: false,
-        error: error.message || 'Unknown error during mod disabling.',
+        error: `Numeric prefix is required for non-virtual mod "${modToDisable.name}" but was not provided or found.`,
       };
+    }
+
+    try {
+      if (!isNonVirtualEffective) {
+        // Mod virtuale (cartella NNN_NomeMod)
+        const modDirInGame =
+          storedModEntry?.activePath || modToDisable.activePath;
+        if (!modDirInGame) {
+          log.error(
+            `[Main DISABLE_MOD] activePath non definito per il mod virtuale ${modToDisable.name} (ID: ${modToDisable.id}). Impossibile determinare la cartella da eliminare.`
+          );
+          return {
+            success: false,
+            error: `activePath not defined for virtual mod ${modToDisable.name}`,
+          };
+        }
+
+        log.info(
+          `[Main DISABLE_MOD] Tentativo di eliminare la directory del mod virtuale: ${modDirInGame}`
+        );
+        if (await directoryExists(modDirInGame)) {
+          await fsPromises.rm(modDirInGame, { recursive: true, force: true });
+          log.info(
+            `[Main DISABLE_MOD] Directory del mod virtuale ${modDirInGame} eliminata con successo.`
+          );
+        } else {
+          log.warn(
+            `[Main DISABLE_MOD] La directory del mod virtuale ${modDirInGame} non esiste. Nessuna azione intrapresa.`
+          );
+        }
+      } else {
+        // Mod non virtuale (file singoli NNN_*.pak, NNN_*.ucas, NNN_*.utoc)
+        const modNameBase = storedModEntry?.name || modToDisable.name;
+        const extensions = ['.pak', '.ucas', '.utoc'];
+        let allFilesRemovedOrAbsent = true;
+        let filesAttemptedToDelete = 0;
+
+        for (const ext of extensions) {
+          const fileNameWithPrefix = `${actualNumericPrefix}_${modNameBase}${ext}`;
+          const filePathInGame = nodePath.join(gameModsDir, fileNameWithPrefix);
+          log.info(
+            `[Main DISABLE_MOD] Tentativo di eliminare il file non virtuale: ${filePathInGame}`
+          );
+
+          try {
+            if (await fileExists(filePathInGame)) {
+              filesAttemptedToDelete++;
+              await fsPromises.unlink(filePathInGame);
+              log.info(
+                `[Main DISABLE_MOD] File non virtuale ${filePathInGame} eliminato con successo.`
+              );
+            } else {
+              log.info(
+                `[Main DISABLE_MOD] Il file non virtuale ${filePathInGame} non esiste. Nessuna azione intrapresa.`
+              );
+            }
+          } catch (fileError: any) {
+            log.error(
+              `[Main DISABLE_MOD] Errore durante l'eliminazione del file ${filePathInGame}: ${fileError.message}`
+            );
+            allFilesRemovedOrAbsent = false;
+          }
+        }
+        if (filesAttemptedToDelete === 0) {
+          log.warn(
+            `[Main DISABLE_MOD] Nessun file trovato o tentato di eliminare per il mod non virtuale ${modNameBase} con prefisso ${actualNumericPrefix}. Il mod potrebbe essere già stato rimosso o il nome/prefisso non corrisponde.`
+          );
+        } else if (!allFilesRemovedOrAbsent) {
+          log.warn(
+            `[Main DISABLE_MOD] Non tutti i file per il mod non virtuale ${modNameBase} sono stati rimossi con successo.`
+          );
+        }
+      }
+
+      // Aggiorna lo store: rimuovi da savedEnabledMods e aggiungi a savedDisabledMods
+      let currentEnabledMods = store.get('savedEnabledMods', []);
+      const modIdToProcess = storedModEntry?.id || modToDisable.id;
+      const modNameForLog = storedModEntry?.name || modToDisable.name;
+      const modPathForStore = storedModEntry?.path || modToDisable.path;
+
+      const modIndexInEnabled = currentEnabledMods.findIndex(
+        (mod) => mod.id === modIdToProcess
+      );
+
+      if (modIndexInEnabled > -1) {
+        currentEnabledMods.splice(modIndexInEnabled, 1);
+        store.set('savedEnabledMods', currentEnabledMods);
+        log.info(
+          `[Main DISABLE_MOD] Mod ${modNameForLog} (ID: ${modIdToProcess}) rimosso da savedEnabledMods.`
+        );
+      } else {
+        log.warn(
+          `[Main DISABLE_MOD] Mod ${modNameForLog} (ID: ${modIdToProcess}) non trovato in savedEnabledMods. Lo store potrebbe non essere sincronizzato.`
+        );
+      }
+
+      let currentDisabledMods = store.get('savedDisabledMods', []);
+      if (!currentDisabledMods.some((mod) => mod.id === modIdToProcess)) {
+        const modToStoreAsDisabled: ModItemForStore = {
+          id: modIdToProcess,
+          name: modNameForLog, // Usa il nome più affidabile (dallo store se c'era, o dall'input)
+          path: modPathForStore, // Usa il path di staging più affidabile
+          isNonVirtual: isNonVirtualEffective, // Conserva l'informazione corretta
+          // activePath e numericPrefix sono rimossi/azzerati per i mod disabilitati
+        };
+        currentDisabledMods.push(modToStoreAsDisabled);
+        store.set('savedDisabledMods', currentDisabledMods);
+        log.info(
+          `[Main DISABLE_MOD] Mod ${modNameForLog} (ID: ${modIdToProcess}) aggiunto a savedDisabledMods. isNonVirtual: ${isNonVirtualEffective}`
+        );
+      } else {
+        log.info(
+          `[Main DISABLE_MOD] Mod ${modNameForLog} (ID: ${modIdToProcess}) già presente in savedDisabledMods. Nessuna modifica a savedDisabledMods.`
+        );
+      }
+
+      log.info(
+        `[Main DISABLE_MOD] Mod ${modNameForLog} (ID: ${modIdToProcess}) disabilitato con successo (o file non trovati).`
+      );
+      return { success: true };
+    } catch (error: any) {
+      log.error(
+        `[Main DISABLE_MOD] Errore durante la disabilitazione del mod ${modToDisable.name} (ID: ${modToDisable.id}): ${error.message}`
+      );
+      return { success: false, error: error.message };
     }
   }
 );
@@ -1752,35 +1802,125 @@ async function scanDirectoryForPaks(
             );
           }
         }
+      } // Fine del loop per le directory virtuali (mod gestiti come cartelle NNN_NomeMod)
+
+      // NUOVA LOGICA per file non virtuali (fisici) nella root di ~mods
+      // Questa logica itera nuovamente su itemsToScan per trovare file singoli con prefisso.
+      const nonVirtualPaksData = new Map<
+        string,
+        { nameBase: string; pakFileName: string; allFiles: string[] }
+      >();
+
+      for (const item of itemsToScan) {
+        // itemsToScan è il contenuto della directory ~mods
+        if (item.isFile()) {
+          // Cerca file che corrispondono a NNN_NomeBase.pak/ucas/utoc
+          const fileMatch = item.name.match(
+            /^(\d{3})_(.+?)\.(pak|ucas|utoc)$/i
+          );
+          if (fileMatch) {
+            const prefix = fileMatch[1]; // Es: "000"
+            const namePart = fileMatch[2]; // Es: "KJShortDistBadSinging_P"
+            const ext = fileMatch[3].toLowerCase(); // Es: "pak"
+
+            let entry = nonVirtualPaksData.get(prefix);
+            if (!entry) {
+              // Inizializza nameBase con il primo nome base che trova per questo prefisso.
+              // Sarà sovrascritto se un file .pak con lo stesso prefisso ha un namePart diverso.
+              entry = { nameBase: namePart, pakFileName: '', allFiles: [] };
+              nonVirtualPaksData.set(prefix, entry);
+            }
+            entry.allFiles.push(item.name);
+
+            if (ext === 'pak') {
+              entry.pakFileName = item.name; // Memorizza il nome completo del file .pak (es. 000_KJShortDistBadSinging_P.pak)
+              entry.nameBase = namePart; // Il nome base del mod è definito dal file .pak
+            }
+          }
+        }
       }
+
+      nonVirtualPaksData.forEach((data, prefix) => {
+        if (data.pakFileName) {
+          // Processa solo se è stato trovato un file .pak per questo prefisso
+          const fullPakPathInGame = nodePath.join(
+            directoryPath!,
+            data.pakFileName
+          );
+          pakFiles.push({
+            id: fullPakPathInGame, // Placeholder ID, da risolvere in synchronizeModStatesLogic. Rappresenta il file .pak in ~mods.
+            name: data.nameBase, // Nome base del mod (es. KJShortDistBadSinging_P)
+            path: fullPakPathInGame, // Placeholder path, come ID. Da risolvere in synchronizeModStatesLogic per puntare allo staging.
+            activePath: directoryPath!, // La directory ~mods stessa, dato che i file sono lì.
+            numericPrefix: prefix,
+            isNonVirtual: true,
+          });
+          log.info(
+            `[scanDirectoryForPaks - GameMods Root Files] Found non-virtual mod files: Name: ${data.nameBase}, Prefix: ${prefix}, Pak: ${data.pakFileName}, All files: ${data.allFiles.join(', ')}`
+          );
+        } else {
+          log.warn(
+            `[scanDirectoryForPaks - GameMods Root Files] Prefix ${prefix} associated with files [${data.allFiles.join(', ')}] but no .pak file. Skipping this group.`
+          );
+        }
+      });
+      // Fine NUOVA LOGICA per file non virtuali
     } else {
       // Scansiona le sottocartelle per i mod (per la staging directory)
-      for (const item of items) {
-        if (item.isDirectory()) {
-          const modFolderName = item.name;
-          const modFolderPath = nodePath.join(directoryPath, modFolderName);
-          try {
-            const filesInsideModFolder =
-              await fsPromises.readdir(modFolderPath);
-            const pakFileName = filesInsideModFolder.find(
-              (f) => nodePath.extname(f).toLowerCase() === '.pak'
-            );
-
-            if (pakFileName) {
-              const pakFilePath = nodePath.join(modFolderPath, pakFileName);
-              pakFiles.push({
-                id: pakFilePath, // ID è il path completo al .pak
-                name: modFolderName, // Nome è il nome della cartella della mod
-                path: pakFilePath, // Path è lo stesso dell'ID
-              });
-            } else {
-              log.warn(
-                `[scanDirectoryForPaks - Staging] No .pak file found in mod directory: ${modFolderPath}`
-              );
+      // Funzione helper ricorsiva per trovare il primo .pak
+      const findFirstPakRecursive = async (
+        currentSearchDir: string
+      ): Promise<string | null> => {
+        try {
+          const entries = await fsPromises.readdir(currentSearchDir, {
+            withFileTypes: true,
+          });
+          // Cerca prima i file .pak al livello corrente
+          for (const entry of entries) {
+            if (
+              entry.isFile() &&
+              nodePath.extname(entry.name).toLowerCase() === '.pak'
+            ) {
+              return nodePath.join(currentSearchDir, entry.name); // Trovato .pak, restituisce il percorso completo
             }
-          } catch (e: any) {
-            log.error(
-              `[scanDirectoryForPaks - Staging] Error reading mod directory ${modFolderPath}: ${e.message}`
+          }
+          // Se non trovato al livello corrente, cerca nelle sottocartelle
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              const foundPakPath = await findFirstPakRecursive(
+                nodePath.join(currentSearchDir, entry.name)
+              );
+              if (foundPakPath) {
+                return foundPakPath; // Ritorna il percorso del .pak trovato nella sottocartella
+              }
+            }
+          }
+        } catch (e: any) {
+          // Logga l'errore ma non interrompere la scansione di altre cartelle di mod principali
+          log.error(
+            `[scanDirectoryForPaks - Staging - findFirstPakRecursive] Error reading directory ${currentSearchDir}: ${e.message}`
+          );
+        }
+        return null; // Non trovato in questa dir o nelle sue sottodirectory
+      };
+      for (const item of items) {
+        // 'items' sono le cartelle principali dei mod in directoryPath (stagingPath)
+        if (item.isDirectory()) {
+          const modFolderName = item.name; // Nome della cartella principale del mod (es. MioMod)
+          const modFolderPath = nodePath.join(directoryPath, modFolderName); // Percorso completo della cartella principale del mod
+
+          const pakFilePath = await findFirstPakRecursive(modFolderPath);
+
+          if (pakFilePath) {
+            pakFiles.push({
+              id: pakFilePath, // ID è il path completo al .pak trovato
+              name: modFolderName, // Nome è il nome della cartella principale della mod
+              path: pakFilePath, // Path è lo stesso dell'ID
+            });
+          } else {
+            // Questo log ora significa che nessun .pak è stato trovato NEANCHE ricorsivamente
+            log.warn(
+              `[scanDirectoryForPaks - Staging] No .pak file found (recursively) in mod directory: ${modFolderPath}`
             );
           }
         }
@@ -1885,141 +2025,251 @@ async function synchronizeModStatesLogic(): Promise<{
 
     // 2. Process mods disabled in store
     for (const storeMod of storeDisabledMods) {
-      const stagedEquivalent = stagedPakMapById.get(storeMod.path);
+      log.verbose(
+        `[synchronizeModStatesLogic] Processing storeDisabledMod: ${JSON.stringify(storeMod)}`
+      );
+      const stagedEquivalent = stagedPakMapById.get(storeMod.path); // storeMod.path è l'ID di staging
       if (stagedEquivalent) {
+        // Se il mod è nello staging ed era disabilitato nello store,
+        // e non è già stato marcato come abilitato, allora rimane disabilitato.
         if (
           !finalEnabledModIds.has(stagedEquivalent.id) &&
           !finalDisabledModIds.has(stagedEquivalent.id)
         ) {
-          finalDisabledMods.push(stagedEquivalent);
-          finalDisabledModIds.add(stagedEquivalent.id);
+          log.info(
+            `[synchronizeModStatesLogic] Mod "${stagedEquivalent.name}" (ID: ${stagedEquivalent.id}) from storeDisabled, found in staging, confirmed as disabled.`
+          );
+          const modToDisable: ModItemForStore = {
+            ...stagedEquivalent, // Usa i dati freschi dallo staging
+            isNonVirtual: storeMod.isNonVirtual, // Preserva l'informazione isNonVirtual originale se disponibile
+          };
+          delete modToDisable.activePath;
+          delete modToDisable.numericPrefix;
+          finalDisabledMods.push(modToDisable);
+          finalDisabledModIds.add(modToDisable.id); // Usa l'ID di staging originale
         }
       } else {
         log.warn(
-          `[synchronizeModStatesLogic] Mod "${storeMod.name}" (path: ${storeMod.path}) was disabled in store, but NOT found in staging. Removing from lists.`
+          `[synchronizeModStatesLogic] Mod "${storeMod.name}" (ID: ${storeMod.id}, Path: ${storeMod.path}) was disabled in store, but NOT found in staging. Removing from lists as it's lost.`
         );
       }
     }
 
-    // 3. Process mods found in game's ~mods folder that weren't in store's enabled list (and thus not in finalEnabledMods yet)
+    // 3. Process mods found in game's ~mods folder that weren't already processed from storeEnabledMods
     for (const gamePak of actualGamePaks) {
-      // Try to find its source in the staging folder by matching base name
-      // gamePak.name è il nome della cartella del mod nella directory ~mods (es. "MyMod" da "000_MyMod")
-      // non il nome del file .pak, quindi non dobbiamo rimuovere ".pak"
-      const baseNameOfGamePak = gamePak.name; // gamePak.name è già il nome base senza prefisso NNN_
+      // gamePak.id qui è il path del .pak in ~mods (per non-virtuali) o il path del .pak dentro la cartella NNN_ (per virtuali)
+      // gamePak.name è il nome base (es. "ModName" o "ModName_P")
+      // gamePak.path è lo stesso di gamePak.id
+      // gamePak.activePath è la cartella NNN_ModName o la directory ~mods
+      // gamePak.isNonVirtual e gamePak.numericPrefix sono popolati da scanDirectoryForPaks per ~mods
+
+      // Tentiamo di vedere se questo gamePak corrisponde a un mod già processato (e quindi presente in finalEnabledModIds)
+      // basandoci sul suo *originale ID di staging*.
+      // Questo è complicato perché gamePak.id è il suo path *nel gioco*.
+      // Dobbiamo cercare in finalEnabledMods un mod il cui activePath o numericPrefix+name corrisponda a gamePak.
+
+      let alreadyProcessedAsEnabled = false;
+      for (const enabledMod of finalEnabledMods) {
+        // enabledMod.id è l'ID di staging originale
+        if (enabledMod.isNonVirtual && gamePak.isNonVirtual) {
+          if (
+            enabledMod.numericPrefix === gamePak.numericPrefix &&
+            enabledMod.name === gamePak.name
+          ) {
+            alreadyProcessedAsEnabled = true;
+            break;
+          }
+        } else if (!enabledMod.isNonVirtual && !gamePak.isNonVirtual) {
+          if (enabledMod.activePath === gamePak.activePath) {
+            // Confronto degli activePath per i virtuali
+            alreadyProcessedAsEnabled = true;
+            break;
+          }
+        }
+      }
+
+      if (alreadyProcessedAsEnabled) {
+        log.info(
+          `[synchronizeModStatesLogic] Game pak "${gamePak.name}" (Path: ${gamePak.path}) was already processed via storeEnabledMods. Skipping.`
+        );
+        continue;
+      }
+
+      // Se siamo qui, il gamePak è attivo nel gioco ma non era in storeEnabledMods (o non è stato trovato attivo tramite esso).
+      // Potrebbe essere un mod aggiunto manualmente, o un mod il cui entry nello store era corrotto/mancante.
+      log.info(
+        `[synchronizeModStatesLogic] Game pak "${gamePak.name}" (Path: ${gamePak.path}, isNonVirtual: ${gamePak.isNonVirtual}) found active in game, was not in storeEnabled or not matched. Attempting to reconcile.`
+      );
+
+      // Cerchiamo un corrispondente nello staging basandoci sul nome.
+      // Per i non-virtuali, il nome è il nome base del file (es. "ModName_P").
+      // Per i virtuali, il nome è il nome base della cartella (es. "ModName").
       let correspondingStagedPak: ModItemForStore | undefined = undefined;
       for (const stagedPak of actualStagedPaks) {
-        // stagedPak.name è il nome della cartella di staging
-        // Confronta i nomi delle cartelle, non i nomi dei file .pak
-        if (stagedPak.name === baseNameOfGamePak) {
+        // stagedPak.name è il nome della cartella di staging (per virtuali) o il nome base del file .pak (se lo staging fosse flat, ma non lo è)
+        // Per i mod nello staging, sono sempre in sottocartelle. Quindi stagedPak.name è il nome della cartella.
+        // Se gamePak è virtuale, gamePak.name è il nome base della cartella (es. "MyMod").
+        // Se gamePak è non-virtuale, gamePak.name è il nome base del file (es. "MyMod_P").
+        // Questa logica di matching potrebbe aver bisogno di raffinamento.
+        // Attualmente, `scanDirectoryForPaks` per lo staging usa il nome della cartella come `stagedPak.name`.
+        if (stagedPak.name === gamePak.name) {
+          // Confronto diretto dei nomi base
           correspondingStagedPak = stagedPak;
           break;
         }
       }
 
       if (correspondingStagedPak) {
-        if (!finalEnabledModIds.has(correspondingStagedPak.id)) {
-          log.info(
-            `[synchronizeModStatesLogic] Mod "${correspondingStagedPak.name}" (from staging) found in game's ~mods (as "${gamePak.name}"), but not in current finalEnabledMods list. Marking as enabled.`
-          );
-          const modToEnable: ModItemForStore = {
-            ...correspondingStagedPak, // Dati base dallo staging
-            activePath: gamePak.activePath, // activePath dalla cartella ~mods
-          };
+        // Trovato un mod nello staging che corrisponde al nome del mod attivo nel gioco.
+        // Questo mod dovrebbe essere abilitato.
+        log.info(
+          `[synchronizeModStatesLogic] Game pak "${gamePak.name}" matched with staged mod "${correspondingStagedPak.name}" (ID: ${correspondingStagedPak.id}). Marking as enabled.`
+        );
+        const modToEnable: ModItemForStore = {
+          ...correspondingStagedPak, // ID, path, name dallo staging
+          activePath: gamePak.activePath,
+          isNonVirtual: gamePak.isNonVirtual,
+          numericPrefix: gamePak.numericPrefix,
+        };
+        if (!finalEnabledModIds.has(modToEnable.id)) {
           finalEnabledMods.push(modToEnable);
-          finalEnabledModIds.add(modToEnable.id);
+          finalEnabledModIds.add(modToEnable.id); // Usa l'ID di staging originale
 
-          // Se era stato erroneamente aggiunto a finalDisabledMods, rimuovilo.
-          if (finalDisabledModIds.has(correspondingStagedPak.id)) {
+          // Se per caso era finito nei disabilitati (improbabile a questo punto, ma per sicurezza)
+          if (finalDisabledModIds.has(modToEnable.id)) {
             const index = finalDisabledMods.findIndex(
-              (m) => m.id === correspondingStagedPak!.id
+              (m) => m.id === modToEnable.id
             );
-            if (index > -1) {
-              finalDisabledMods.splice(index, 1);
-              log.info(
-                `[synchronizeModStatesLogic] Removed ${correspondingStagedPak.name} from finalDisabledMods as it's now confirmed enabled.`
-              );
-            }
-            finalDisabledModIds.delete(correspondingStagedPak.id);
+            if (index > -1) finalDisabledMods.splice(index, 1);
+            finalDisabledModIds.delete(modToEnable.id);
           }
         }
       } else {
-        log.info(
-          `[synchronizeModStatesLogic] Mod "${gamePak.name}" (folder ${gamePak.activePath}) found in game's ~mods, but no corresponding source file found in staging. Creating virtual staging entry for management.`
+        // Mod attivo nel gioco, ma nessun corrispondente trovato nello staging tramite nome.
+        // Questo è un mod "orfano" o aggiunto manualmente. Creiamo un entry "virtual staging" per gestirlo.
+        log.warn(
+          `[synchronizeModStatesLogic] Game pak "${gamePak.name}" (Path: ${gamePak.path}) has no corresponding mod in staging by name. Creating virtual staging entry.`
         );
-        // Crea un entry virtuale per i mod che esistono solo nella directory ~mods
-        // Questi mod possono essere stati aggiunti manualmente dall'utente
         const virtualStagingMod: ModItemForStore = {
-          id: gamePak.id, // Usa l'ID del mod dalla directory ~mods
-          name: gamePak.name, // Nome base del mod
-          path: gamePak.path, // Path del .pak nella directory ~mods (non nello staging)
-          activePath: gamePak.activePath, // Path della cartella nella directory ~mods
+          id: gamePak.path, // L'ID diventa il suo path nel gioco, dato che non ha uno staging path
+          name: gamePak.name,
+          path: gamePak.path, // Anche il path di "staging" è il suo path nel gioco
+          activePath: gamePak.activePath,
+          isNonVirtual: gamePak.isNonVirtual,
+          numericPrefix: gamePak.numericPrefix,
         };
-
-        finalEnabledMods.push(virtualStagingMod);
-        finalEnabledModIds.add(virtualStagingMod.id);
-
-        log.info(
-          `[synchronizeModStatesLogic] Added virtual staging entry for mod "${gamePak.name}" as enabled.`
-        );
+        if (!finalEnabledModIds.has(virtualStagingMod.id)) {
+          // Controlla usando il nuovo ID (path del gioco)
+          finalEnabledMods.push(virtualStagingMod);
+          finalEnabledModIds.add(virtualStagingMod.id); // Aggiungi il nuovo ID
+        }
       }
     }
 
-    // 4. Process mods found in staging that are not yet in any list (these are new/untracked mods)
+    // 4. Process mods found in staging that are not yet in any list (these are new/untracked mods from staging)
     for (const stagedPak of actualStagedPaks) {
+      // stagedPak.id è il path del .pak nello staging
+      // stagedPak.name è il nome della cartella di staging
       if (
         !finalEnabledModIds.has(stagedPak.id) &&
         !finalDisabledModIds.has(stagedPak.id)
       ) {
         log.info(
-          `[synchronizeModStatesLogic] Mod "${stagedPak.name}" found in staging, not in any processed list. Marking as disabled by default.`
+          `[synchronizeModStatesLogic] Mod "${stagedPak.name}" (ID: ${stagedPak.id}) from staging was not in store and not found active in game. Marking as disabled by default.`
         );
-        finalDisabledMods.push(stagedPak);
-        finalDisabledModIds.add(stagedPak.id);
+        // Questi sono mod che esistono solo nello staging e non sono stati menzionati nello store né trovati attivi.
+        // Vengono aggiunti come disabilitati.
+        const modToDisable: ModItemForStore = {
+          ...stagedPak, // Dati dallo staging
+          // isNonVirtual non è rilevante qui perché non sono attivi, ma per coerenza lo impostiamo a false (default per staging)
+          isNonVirtual: false,
+        };
+        delete modToDisable.activePath;
+        delete modToDisable.numericPrefix;
+        finalDisabledMods.push(modToDisable);
+        finalDisabledModIds.add(modToDisable.id); // Usa l'ID di staging
       }
     }
 
-    // Final deduplication using the already constructed finalEnabledMods and finalDisabledMods lists,
-    // which contain ModItemForStore objects potentially enriched with activePath.
-    const finalEnabledMap = new Map<string, ModItemForStore>();
+    // 5. Final Deduplication and Refinement
+    // Assicurati che nessun mod sia contemporaneamente in enabled e disabled.
+    // Gli enabled hanno la precedenza.
+    const finalUniqueEnabledMods: ModItemForStore[] = [];
+    const finalUniqueEnabledModIds = new Set<string>();
+
     for (const mod of finalEnabledMods) {
-      if (!finalEnabledMap.has(mod.id)) {
-        finalEnabledMap.set(mod.id, mod);
+      if (!finalUniqueEnabledModIds.has(mod.id)) {
+        finalUniqueEnabledMods.push(mod);
+        finalUniqueEnabledModIds.add(mod.id);
       } else {
-        // If a mod with the same ID is already in the map, prioritize the one with activePath if the current one doesn't have it.
-        // This handles edge cases, though prior logic should ideally prevent needing this.
-        const existingMod = finalEnabledMap.get(mod.id)!;
-        if (!existingMod.activePath && mod.activePath) {
-          finalEnabledMap.set(mod.id, mod);
+        // Duplicato trovato in finalEnabledMods. Questo può accadere se un mod virtuale (già in ~mods)
+        // è stato anche esplicitamente abilitato nello store.
+        // Dobbiamo decidere quale entry tenere. Generalmente, l'entry con più dettagli (es. activePath corretto) è preferibile.
+        // La logica precedente dovrebbe già aver gestito questo, ma per sicurezza:
+        const existingIndex = finalUniqueEnabledMods.findIndex(
+          (m) => m.id === mod.id
+        );
+        if (existingIndex !== -1) {
+          const existingMod = finalUniqueEnabledMods[existingIndex];
+          // Se il mod corrente ha più informazioni (es. activePath e il vecchio no), aggiorna.
+          if (mod.activePath && !existingMod.activePath) {
+            finalUniqueEnabledMods[existingIndex] = mod;
+            log.warn(
+              `[synchronizeModStatesLogic - DedupeEnabled] Updated mod ${mod.id} in finalUniqueEnabledMods with version that has activePath.`
+            );
+          } else if (
+            mod.isNonVirtual !== existingMod.isNonVirtual ||
+            mod.numericPrefix !== existingMod.numericPrefix
+          ) {
+            // O se ci sono altre discrepanze significative, logga e considera quale tenere.
+            log.warn(
+              `[synchronizeModStatesLogic - DedupeEnabled] Mod ${mod.id} has conflicting entries in finalEnabledMods. Current: ${JSON.stringify(mod)}, Existing: ${JSON.stringify(existingMod)}. Keeping the one with more details or later processed.`
+            );
+            // Potremmo implementare una logica di merge più sofisticata se necessario. Per ora, l'ultimo vince se ha activePath.
+          }
+        }
+      }
+    }
+
+    const finalUniqueDisabledMods: ModItemForStore[] = [];
+    for (const mod of finalDisabledMods) {
+      if (!finalUniqueEnabledModIds.has(mod.id)) {
+        // Se non è già stato marcato come abilitato
+        // Assicurati che non ci siano duplicati neanche in finalDisabledMods
+        if (!finalUniqueDisabledMods.some((m) => m.id === mod.id)) {
+          // Per i mod disabilitati, rimuoviamo activePath e numericPrefix
+          const { activePath, numericPrefix, ...cleanMod } = mod;
+          finalUniqueDisabledMods.push(cleanMod);
+        } else {
           log.warn(
-            `[synchronizeModStatesLogic] Deduplication: Updated mod ${mod.id} in finalEnabledMap with version that has activePath.`
+            `[synchronizeModStatesLogic - DedupeDisabled] Mod ${mod.id} was already in finalUniqueDisabledMods. Skipping duplicate.`
           );
         }
+      } else {
+        log.info(
+          `[synchronizeModStatesLogic - DedupeConflict] Mod ${mod.id} was in finalDisabledMods but also in finalEnabledMods. Prioritizing enabled state.`
+        );
       }
     }
-    const uniqueFinalEnabledMods = Array.from(finalEnabledMap.values());
-
-    const finalDisabledMap = new Map<string, ModItemForStore>();
-    for (const mod of finalDisabledMods) {
-      if (!finalEnabledMap.has(mod.id)) {
-        // Ensure it's not in the enabled list
-        if (!finalDisabledMap.has(mod.id)) {
-          // Ensure activePath is not present for disabled mods
-          const { activePath, ...modWithoutActivePath } = mod;
-          finalDisabledMap.set(mod.id, modWithoutActivePath);
-        }
-      }
-    }
-    const uniqueFinalDisabledMods = Array.from(finalDisabledMap.values());
 
     log.info(
-      `[synchronizeModStatesLogic] Synchronization complete. Final - Disabled: ${uniqueFinalDisabledMods.length}, Enabled: ${uniqueFinalEnabledMods.length}`
+      `[synchronizeModStatesLogic] Synchronization complete. Final - Disabled: ${finalUniqueDisabledMods.length}, Enabled: ${finalUniqueEnabledMods.length}`
     );
+    if (finalUniqueEnabledMods.length > 0) {
+      log.verbose(
+        `[synchronizeModStatesLogic] First final enabled mod: ${JSON.stringify(finalUniqueEnabledMods[0])}`
+      );
+    }
+    if (finalUniqueDisabledMods.length > 0) {
+      log.verbose(
+        `[synchronizeModStatesLogic] First final disabled mod: ${JSON.stringify(finalUniqueDisabledMods[0])}`
+      );
+    }
 
     return {
       success: true,
-      disabledMods: uniqueFinalDisabledMods,
-      enabledMods: uniqueFinalEnabledMods,
+      disabledMods: finalUniqueDisabledMods,
+      enabledMods: finalUniqueEnabledMods,
     };
   } catch (error: any) {
     log.error(
@@ -2522,11 +2772,16 @@ ipcMain.handle('get-profile-paths', async () => {
     const userDataPath = app.getPath('userData');
     const profilesDir = nodePath.join(userDataPath, PROFILES_DIR_NAME);
     const profilesFilePath = nodePath.join(profilesDir, PROFILES_FILE_NAME);
-    log.info(`[Main Process] Determined profile paths: Dir - ${profilesDir}, File - ${profilesFilePath}`);
+    log.info(
+      `[Main Process] Determined profile paths: Dir - ${profilesDir}, File - ${profilesFilePath}`
+    );
     return { success: true, paths: { profilesDir, profilesFilePath } };
   } catch (error: any) {
     log.error('[Main Process] Error getting profile paths:', error);
-    return { success: false, error: error.message || 'Failed to get profile paths.' };
+    return {
+      success: false,
+      error: error.message || 'Failed to get profile paths.',
+    };
   }
 });
 
@@ -2537,12 +2792,17 @@ ipcMain.handle('get-user-data-path', async () => {
     return { success: true, path: userDataPath };
   } catch (error: any) {
     log.error('[Main Process] Error getting user data path:', error);
-    return { success: false, error: error.message || 'Failed to get user data path.' };
+    return {
+      success: false,
+      error: error.message || 'Failed to get user data path.',
+    };
   }
 });
 
 ipcMain.handle('profiles-access', async (event, filePath: string) => {
-  log.info(`[Main Process] Renderer requested to check access to file: ${filePath}`);
+  log.info(
+    `[Main Process] Renderer requested to check access to file: ${filePath}`
+  );
   try {
     await fsPromises.access(filePath);
     return { success: true, exists: true };
@@ -2552,7 +2812,11 @@ ipcMain.handle('profiles-access', async (event, filePath: string) => {
       return { success: true, exists: false };
     }
     log.error(`[Main Process] Error accessing file ${filePath}:`, error);
-    return { success: false, error: error.message || `Failed to access file ${filePath}.`, exists: false };
+    return {
+      success: false,
+      error: error.message || `Failed to access file ${filePath}.`,
+      exists: false,
+    };
   }
 });
 
@@ -2563,7 +2827,10 @@ ipcMain.handle('profiles-mkdir', async (event, dirPath: string) => {
     return { success: true };
   } catch (error: any) {
     log.error(`[Main Process] Error creating directory ${dirPath}:`, error);
-    return { success: false, error: error.message || `Failed to create directory ${dirPath}.` };
+    return {
+      success: false,
+      error: error.message || `Failed to create directory ${dirPath}.`,
+    };
   }
 });
 
@@ -2574,84 +2841,134 @@ ipcMain.handle('profiles-read-file', async (event, filePath: string) => {
     return { success: true, content };
   } catch (error: any) {
     log.error(`[Main Process] Error reading file ${filePath}:`, error);
-    return { success: false, error: error.message || `Failed to read file ${filePath}.` };
+    return {
+      success: false,
+      error: error.message || `Failed to read file ${filePath}.`,
+    };
   }
 });
 
-ipcMain.handle('profiles-write-file', async (event, filePath: string, content: string) => {
-  log.info(`[Main Process] Renderer requested to write file: ${filePath}`);
-  try {
-    await fsPromises.writeFile(filePath, content, 'utf-8');
-    return { success: true };
-  } catch (error: any) {
-    log.error(`[Main Process] Error writing file ${filePath}:`, error);
-    return { success: false, error: error.message || `Failed to write file ${filePath}.` };
+ipcMain.handle(
+  'profiles-write-file',
+  async (event, filePath: string, content: string) => {
+    log.info(`[Main Process] Renderer requested to write file: ${filePath}`);
+    try {
+      await fsPromises.writeFile(filePath, content, 'utf-8');
+      return { success: true };
+    } catch (error: any) {
+      log.error(`[Main Process] Error writing file ${filePath}:`, error);
+      return {
+        success: false,
+        error: error.message || `Failed to write file ${filePath}.`,
+      };
+    }
   }
-});
+);
 // --- END IPC Handlers for Profile Management ---
 
 // --- IPC Handlers for Generic File Operations (Import/Export Profiles) ---
 
-ipcMain.handle('show-save-dialog', async (event, options: Electron.SaveDialogOptions) => {
-  log.info('[Main Process] Renderer requested to show save dialog with options:', options);
-  if (!win) {
-    log.error('[Main Process] Main window not available for showSaveDialog.');
-    return { canceled: true, error: 'Main window not available.' };
+ipcMain.handle(
+  'show-save-dialog',
+  async (event, options: Electron.SaveDialogOptions) => {
+    log.info(
+      '[Main Process] Renderer requested to show save dialog with options:',
+      options
+    );
+    if (!win) {
+      log.error('[Main Process] Main window not available for showSaveDialog.');
+      return { canceled: true, error: 'Main window not available.' };
+    }
+    try {
+      const result = await dialog.showSaveDialog(win, options);
+      log.info('[Main Process] Save dialog result:', result);
+      return result;
+    } catch (error: any) {
+      log.error('[Main Process] Error showing save dialog:', error);
+      return {
+        canceled: true,
+        error: error.message || 'Failed to show save dialog.',
+      };
+    }
   }
-  try {
-    const result = await dialog.showSaveDialog(win, options);
-    log.info('[Main Process] Save dialog result:', result);
-    return result;
-  } catch (error: any) {
-    log.error('[Main Process] Error showing save dialog:', error);
-    return { canceled: true, error: error.message || 'Failed to show save dialog.' };
-  }
-});
+);
 
-ipcMain.handle('show-open-dialog', async (event, options: Electron.OpenDialogOptions) => {
-  log.info('[Main Process] Renderer requested to show open dialog with options:', options);
-  if (!win) {
-    log.error('[Main Process] Main window not available for showOpenDialog.');
-    return { canceled: true, error: 'Main window not available.' };
+ipcMain.handle(
+  'show-open-dialog',
+  async (event, options: Electron.OpenDialogOptions) => {
+    log.info(
+      '[Main Process] Renderer requested to show open dialog with options:',
+      options
+    );
+    if (!win) {
+      log.error('[Main Process] Main window not available for showOpenDialog.');
+      return { canceled: true, error: 'Main window not available.' };
+    }
+    try {
+      const result = await dialog.showOpenDialog(win, options);
+      log.info('[Main Process] Open dialog result:', result);
+      return result;
+    } catch (error: any) {
+      log.error('[Main Process] Error showing open dialog:', error);
+      return {
+        canceled: true,
+        error: error.message || 'Failed to show open dialog.',
+      };
+    }
   }
-  try {
-    const result = await dialog.showOpenDialog(win, options);
-    log.info('[Main Process] Open dialog result:', result);
-    return result;
-  } catch (error: any) {
-    log.error('[Main Process] Error showing open dialog:', error);
-    return { canceled: true, error: error.message || 'Failed to show open dialog.' };
-  }
-});
+);
 
 ipcMain.handle('read-file-content', async (event, filePath: string) => {
-  log.info(`[Main Process] Renderer requested to read file content: ${filePath}`);
+  log.info(
+    `[Main Process] Renderer requested to read file content: ${filePath}`
+  );
   try {
     // Validate filePath if necessary (e.g., ensure it's within allowed directories if sandboxing)
     // For now, assuming filePath is trusted or validated by the renderer/service layer.
     const content = await fsPromises.readFile(filePath, 'utf-8');
     return { success: true, content };
   } catch (error: any) {
-    log.error(`[Main Process] Error reading file content from ${filePath}:`, error);
+    log.error(
+      `[Main Process] Error reading file content from ${filePath}:`,
+      error
+    );
     // Specific check for ENOENT (File not found)
     if (error.code === 'ENOENT') {
-      return { success: false, error: `File not found: ${filePath}`, code: 'ENOENT' };
+      return {
+        success: false,
+        error: `File not found: ${filePath}`,
+        code: 'ENOENT',
+      };
     }
-    return { success: false, error: error.message || `Failed to read file content from ${filePath}.` };
+    return {
+      success: false,
+      error: error.message || `Failed to read file content from ${filePath}.`,
+    };
   }
 });
 
-ipcMain.handle('write-file-content', async (event, filePath: string, content: string) => {
-  log.info(`[Main Process] Renderer requested to write file content to: ${filePath}`);
-  try {
-    // Validate filePath if necessary
-    await fsPromises.writeFile(filePath, content, 'utf-8');
-    return { success: true };
-  } catch (error: any) {
-    log.error(`[Main Process] Error writing file content to ${filePath}:`, error);
-    return { success: false, error: error.message || `Failed to write file content to ${filePath}.` };
+ipcMain.handle(
+  'write-file-content',
+  async (event, filePath: string, content: string) => {
+    log.info(
+      `[Main Process] Renderer requested to write file content to: ${filePath}`
+    );
+    try {
+      // Validate filePath if necessary
+      await fsPromises.writeFile(filePath, content, 'utf-8');
+      return { success: true };
+    } catch (error: any) {
+      log.error(
+        `[Main Process] Error writing file content to ${filePath}:`,
+        error
+      );
+      return {
+        success: false,
+        error: error.message || `Failed to write file content to ${filePath}.`,
+      };
+    }
   }
-});
+);
 
 // --- END IPC Handlers for Generic File Operations ---
 
@@ -2662,16 +2979,19 @@ ipcMain.handle('get-theme', async () => {
   return theme;
 });
 
-ipcMain.handle('set-theme', async (event, themeValue: 'light' | 'dark' | 'system') => {
-  if (['light', 'dark', 'system'].includes(themeValue)) {
-    store.set('theme', themeValue);
-    log.info(`[Main] Theme set to: ${themeValue}`);
-    // Opzionale: notifica la finestra del renderer del cambio di tema se necessario immediatamente
-    // win?.webContents.send('theme-changed', themeValue);
-    return { success: true, theme: themeValue };
-  } else {
-    log.error(`[Main] Invalid theme value received: ${themeValue}`);
-    return { success: false, error: 'Invalid theme value provided.' };
+ipcMain.handle(
+  'set-theme',
+  async (event, themeValue: 'light' | 'dark' | 'system') => {
+    if (['light', 'dark', 'system'].includes(themeValue)) {
+      store.set('theme', themeValue);
+      log.info(`[Main] Theme set to: ${themeValue}`);
+      // Opzionale: notifica la finestra del renderer del cambio di tema se necessario immediatamente
+      // win?.webContents.send('theme-changed', themeValue);
+      return { success: true, theme: themeValue };
+    } else {
+      log.error(`[Main] Invalid theme value received: ${themeValue}`);
+      return { success: false, error: 'Invalid theme value provided.' };
+    }
   }
-});
+);
 // --- END IPC Handlers for Theme ---
