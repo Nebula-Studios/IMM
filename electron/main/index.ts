@@ -145,6 +145,7 @@ async function createWindow() {
     // Open devTool if the app is not packaged
     // win.webContents.openDevTools(); // LEAVE COMMENTED FOR NOW
   } else {
+    win.setMenuBarVisibility(false);
     win.loadFile(indexHtml);
   }
 
@@ -3274,3 +3275,78 @@ ipcMain.handle(
   }
 );
 // --- END IPC Handlers for Theme ---
+
+// --- IPC Handler for Launching Game ---
+ipcMain.handle('launch-game', async () => {
+  const gameFolderPath = store.get('gameFolderPath');
+  if (!gameFolderPath) {
+    log.error('[Main - launch-game] Game folder path not set.');
+    return {
+      success: false,
+      error: 'Game installation path not configured. Please set it up first.',
+    };
+  }
+
+  log.info(`[Main - launch-game] Attempting to launch InZOI from: ${gameFolderPath}`);
+
+  // Possibili percorsi dell'eseguibile del gioco
+  const possibleExecutables = [
+    'inZOI.exe',
+    'InZOI.exe',
+    'BlueClient/Binaries/Win64/InZOI.exe',
+    'BlueClient/Binaries/Win64/BlueClient.exe'
+  ];
+
+  let gameExecutablePath: string | null = null;
+
+  // Cerca l'eseguibile del gioco
+  for (const executablePath of possibleExecutables) {
+    const fullPath = nodePath.join(gameFolderPath, executablePath);
+    if (fs.existsSync(fullPath)) {
+      gameExecutablePath = fullPath;
+      log.info(`[Main - launch-game] Found game executable at: ${fullPath}`);
+      break;
+    }
+  }
+
+  if (!gameExecutablePath) {
+    log.error(`[Main - launch-game] Game executable not found in any of the expected locations within: ${gameFolderPath}`);
+    return {
+      success: false,
+      error: 'Game executable not found. Please verify your InZOI installation.',
+    };
+  }
+
+  try {
+    const { spawn } = require('child_process');
+    
+    // Parametri per l'avvio del gioco - InZOI potrebbe richiedere "BlueClient" come parametro
+    const gameArgs = ['BlueClient'];
+    
+    // Avvia il gioco come processo separato
+    const gameProcess = spawn(gameExecutablePath, gameArgs, {
+      detached: true,
+      stdio: 'ignore',
+      cwd: nodePath.dirname(gameExecutablePath) // Imposta la working directory alla cartella dell'eseguibile
+    });
+
+    // Rilascia il riferimento al processo figlio
+    gameProcess.unref();
+
+    log.info(`[Main - launch-game] Successfully launched InZOI with PID: ${gameProcess.pid}`);
+    
+    return {
+      success: true,
+      message: 'InZOI launched successfully',
+      pid: gameProcess.pid
+    };
+
+  } catch (error: any) {
+    log.error('[Main - launch-game] Error launching InZOI:', error);
+    return {
+      success: false,
+      error: `Failed to launch InZOI: ${error.message}`,
+    };
+  }
+});
+// --- END IPC Handler for Launching Game ---

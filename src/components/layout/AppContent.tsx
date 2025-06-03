@@ -69,6 +69,39 @@ export default function AppContent({
     }
   }, []);
 
+  const handleLaunchGame = useCallback(async () => {
+    console.log('[AppContent] Game launch requested via MenuBar');
+    
+    if (!gameFolderPath) {
+      toast.error('Game folder path not configured. Please set it up first.');
+      return;
+    }
+
+    try {
+      toast.loading('Launching InZOI...', { id: 'game-launch' });
+      
+      const result = await window.electronAPI.launchGame();
+      
+      if (result.success) {
+        toast.success('InZOI launched successfully!', {
+          id: 'game-launch',
+          duration: 3000
+        });
+        console.log('[AppContent] Game launched with PID:', result.pid);
+      } else {
+        toast.error(result.error || 'Failed to launch InZOI', {
+          id: 'game-launch'
+        });
+        console.error('[AppContent] Game launch failed:', result.error);
+      }
+    } catch (error: any) {
+      toast.error(`Error launching game: ${error.message}`, {
+        id: 'game-launch'
+      });
+      console.error('[AppContent] Exception during game launch:', error);
+    }
+  }, [gameFolderPath]);
+
   console.log(
     '[AppContent.tsx] Props: gameFolderPath:',
     gameFolderPath,
@@ -89,6 +122,7 @@ export default function AppContent({
         onDevClearFolder={onHookHandleDevClearFolder}
         onSettingsClick={onToggleSettingsPage}
         onRefreshMods={handleRefreshFromMenu}
+        onLaunchGame={handleLaunchGame}
       />
       {/* Area di contenuto principale, scrollabile se necessario */}
       <div className="flex-grow overflow-hidden min-h-0"> {/* Modificato da overflow-y-auto a overflow-hidden */}

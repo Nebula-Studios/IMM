@@ -341,6 +341,7 @@ const ManageProfilesDialog: React.FC<ManageProfilesDialogProps> = ({
                           </Button>
                           <Button
                             variant="ghost"
+                            color="neutral"
                             size="icon"
                             onClick={() => handleStartRename(profile)}
                             title={t('common.edit')}
@@ -349,8 +350,9 @@ const ManageProfilesDialog: React.FC<ManageProfilesDialogProps> = ({
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
-                            variant="destructive"
-                            size="sm" // o "icon" se preferisci solo l'icona
+                            variant="outline"
+                            color="danger"
+                            size="icon"
                             onClick={() => handleDeleteProfile(profile.id, profile.name)}
                             disabled={isDefaultProtected}
                             title={isDefaultProtected ? t('profiles.cannotDeleteDefault') : t('profiles.deleteButtonTooltip')}

@@ -3,6 +3,8 @@
     "loading": "Caricamento..."
   },
   "menuBar": {
+    "launchGame": "Avvia Gioco",
+    "launchGameTooltip": "Avvia InZOI",
     "missingModsAlert": {
       "title": "Alcuni Mod Risultano Mancanti!",
       "descriptionPart1": "Non siamo riusciti a caricare completamente il tuo profilo \"<strong>{loadingProfileName}</strong>\" perché questi mod sembrano non essere presenti:",

@@ -3,6 +3,8 @@
     "loading": "Loading..."
   },
   "menuBar": {
+    "launchGame": "Launch Game",
+    "launchGameTooltip": "Launch InZOI",
     "missingModsAlert": {
       "title": "Some Mods Are Missing!",
       "descriptionPart1": "We couldn't fully load your profile \"<strong>{loadingProfileName}</strong>\" because these mods seem to be missing:",

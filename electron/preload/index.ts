@@ -211,6 +211,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     themeValue: 'light' | 'dark' | 'system'
   ): Promise<{ success: boolean; theme?: 'light' | 'dark' | 'system'; error?: string }> =>
     ipcRenderer.invoke('set-theme', themeValue),
+
+  // Game Launch function
+  launchGame: (): Promise<{
+    success: boolean;
+    message?: string;
+    pid?: number;
+    error?: string;
+  }> => ipcRenderer.invoke('launch-game'),
 });
 
 // --------- Preload scripts loading ---------

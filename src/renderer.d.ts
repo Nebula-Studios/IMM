@@ -176,6 +176,14 @@ export interface IElectronAPI {
     theme?: 'light' | 'dark' | 'system';
     error?: string;
   }>;
+
+  // Game Launch function
+  launchGame: () => Promise<{
+    success: boolean;
+    message?: string;
+    pid?: number;
+    error?: string;
+  }>;
 }
 
 declare global {

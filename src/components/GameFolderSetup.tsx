@@ -201,7 +201,8 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
             <Button
               onClick={handleSelectGameFolder}
               disabled={isProcessing}
-              variant="destructive"
+              variant="outline"
+              color="danger"
               size="lg"
             >
               {isProcessing ? (
@@ -259,7 +260,8 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
               <Button
                 onClick={handleSelectStagingFolder}
                 disabled={isProcessing}
-                variant="destructive"
+                variant="outline"
+                color="danger"
                 size="lg"
               >
                 {isProcessing ? (

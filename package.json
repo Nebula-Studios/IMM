@@ -1,6 +1,6 @@
 {
   "name": "inzoi-mod-manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist-electron/main/index.js",
   "description": "InZOI Mod Manager",
   "author": "Nebula Studios",
@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder --publish onTagOrDraft",
+    "local": "tsc && vite build && electron-builder --publish never",
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run",

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings, FolderX, HelpCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Settings, FolderX, HelpCircle, RefreshCw, AlertTriangle, Play } from 'lucide-react';
 import { Button } from '../ui/button.tsx'; // Corretto percorso
 // import { APP_VERSION } from '@/lib/constants.ts';
 import appIcon from '/icon.svg'; // Importa l'icona
@@ -24,6 +24,7 @@ export interface MenuBarProps {
   onDevClearFolder: () => Promise<void>;
   onSettingsClick: () => void;
   onRefreshMods: () => void;
+  onLaunchGame: () => void;
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
@@ -31,6 +32,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
   onDevClearFolder,
   onSettingsClick,
   onRefreshMods,
+  onLaunchGame,
 }) => {
   const { t } = useTranslation();
   const [isManageProfilesDialogOpen, setIsManageProfilesDialogOpen] =
@@ -154,19 +156,31 @@ const MenuBar: React.FC<MenuBarProps> = ({
           )} */}
 
           <Button
-            variant="default"
+            variant="outline"
+            color="success"
             size="sm"
+            onClick={onLaunchGame}
+            title={t('menuBar.launchGameTooltip')}
+          >
+            <Play className="h-4 w-4 mr-1" />
+            {t('menuBar.launchGame')}
+          </Button>
+
+          <Button
+            variant="ghost"
+            color="neutral"
+            size="icon"
             onClick={onRefreshMods}
             title="Refresh Mod List"
           >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh Mods
+            <RefreshCw className="h-4 w-4" />
           </Button>
 
           {/* Pulsante per resettare il percorso - SOLO SVILUPPO */}
           {process.env.NODE_ENV === 'development' && (
             <Button
-              variant="destructive"
+              variant="default"
+              color="danger"
               size="sm"
               onClick={onDevClearFolder}
               title="DEV ONLY: Reset Game Folder Path"
@@ -178,6 +192,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
           <Button
             variant="outline"
+            color="neutral"
             size="sm"
             onClick={onSettingsClick}
             title="Open Settings"
