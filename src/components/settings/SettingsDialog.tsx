@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button.tsx';
@@ -26,12 +24,6 @@ import {
 } from '@/components/ui/select.tsx';
 import { FolderCog } from 'lucide-react';
 
-/**
- * @interface StagingPathConfig
- * @property {string | null} customPath - The custom staging path set by the user, or null if not set.
- * @property {string} defaultPath - The default staging path.
- * @property {string} activePath - The currently active staging path (either custom or default).
- */
 interface StagingPathConfig {
   customPath: string | null;
   defaultPath: string;
@@ -43,10 +35,6 @@ interface SettingsDialogProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-/**
- * SettingsDialog component allows users to configure application settings,
- * such as the InZOI game folder path and the mod staging directory path.
- */
 const SettingsDialog: React.FC<SettingsDialogProps> = ({
   isOpen,
   onOpenChange,
@@ -59,9 +47,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     useState<boolean>(true);
   const { t, i18n } = useTranslation();
 
-  /**
-   * Fetches the current game folder path from the main process.
-   */
   const fetchGameFolderPath = useCallback(async () => {
     setIsLoadingGamePath(true);
     try {
@@ -80,11 +65,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       setGameFolderPath(t('settings.errorRetrievingPath'));
     }
     setIsLoadingGamePath(false);
-  }, []);
+  }, [t]);
 
-  /**
-   * Fetches the current mod staging path configuration from the main process.
-   */
   const fetchStagingPathConfig = useCallback(async () => {
     setIsLoadingStagingPath(true);
     try {
@@ -100,7 +82,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       setStagingPathConfig(null);
     }
     setIsLoadingStagingPath(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -109,107 +91,145 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     }
   }, [isOpen, fetchGameFolderPath, fetchStagingPathConfig]);
 
-  /**
-   * Handles the selection of a new game folder path.
-   */
   const handleSelectGameFolder = async () => {
     try {
       const selectedPath = await window.electronAPI.openFolderDialog();
-      if (selectedPath) {
-        const result =
-          await window.electronAPI.saveGameFolderPath(selectedPath);
-        if (result.success) {
-          setGameFolderPath(result.path || '');
-          toast.success(t('settings.gamePathUpdatedToastTitle'), {
-            description: t('settings.pathSetToToastDescription', {
-              path: result.path,
-            }),
-          });
-        } else {
-          toast.error(t('settings.failedToUpdateGamePathToastTitle'), {
-            description: result.error || t('settings.unknownErrorOccurred'),
-          });
-        }
-      }
+      if (!selectedPath) return;
+
+      await saveGameFolderPath(selectedPath);
     } catch (error) {
       console.error('Error selecting/saving game folder path:', error);
-      toast.error(t('settings.errorUpdatingGamePathToastTitle'), {
-        description: t(
-          'settings.unexpectedErrorUpdatingGamePathToastDescription'
-        ),
+      showGamePathError();
+    }
+  };
+
+  const saveGameFolderPath = async (selectedPath: string) => {
+    const result = await window.electronAPI.saveGameFolderPath(selectedPath);
+
+    if (result.success) {
+      setGameFolderPath(result.path || '');
+      toast.success(t('settings.gamePathUpdatedToastTitle'), {
+        description: t('settings.pathSetToToastDescription', {
+          path: result.path,
+        }),
+      });
+    } else {
+      toast.error(t('settings.failedToUpdateGamePathToastTitle'), {
+        description: result.error || t('settings.unknownErrorOccurred'),
       });
     }
   };
 
-  /**
-   * Handles the selection of a new mod staging directory.
-   */
+  const showGamePathError = () => {
+    toast.error(t('settings.errorUpdatingGamePathToastTitle'), {
+      description: t(
+        'settings.unexpectedErrorUpdatingGamePathToastDescription'
+      ),
+    });
+  };
+
   const handleSelectStagingFolder = async () => {
     try {
       const result = await window.electronAPI.setModStagingPath();
+
       if (result.success && result.path) {
-        fetchStagingPathConfig(); // Refresh the config
-        toast.success(t('settings.stagingPathUpdatedToastTitle'), {
-          description: t('settings.pathSetToToastDescription', {
-            path: result.path,
-          }),
-        });
-      } else if (
-        result.error &&
-        result.error !== 'Directory selection canceled.' // Reverted to original string as this is an internal error message not meant for translation
-      ) {
-        // Only show error if it wasn't a cancellation
-        toast.error(t('settings.failedToUpdateStagingPathToastTitle'), {
-          description: result.error || t('settings.unknownErrorOccurred'),
-        });
+        await handleStagingPathSuccess(result.path);
+      } else if (result.error && !isCancellationError(result.error)) {
+        showStagingPathError(result.error);
       }
     } catch (error) {
       console.error('Error selecting/saving mod staging directory:', error);
-      toast.error(t('settings.errorUpdatingStagingPathToastTitle'), {
-        description: t(
-          'settings.unexpectedErrorUpdatingStagingPathToastDescription'
-        ),
-      });
+      showUnexpectedStagingPathError();
     }
   };
 
-  /**
-   * Clears the custom mod staging path, reverting to the default.
-   */
+  const handleStagingPathSuccess = async (path: string) => {
+    await fetchStagingPathConfig();
+    toast.success(t('settings.stagingPathUpdatedToastTitle'), {
+      description: t('settings.pathSetToToastDescription', { path }),
+    });
+  };
+
+  const isCancellationError = (error: string) => {
+    return error === 'Directory selection canceled.';
+  };
+
+  const showStagingPathError = (error?: string) => {
+    toast.error(t('settings.failedToUpdateStagingPathToastTitle'), {
+      description: error || t('settings.unknownErrorOccurred'),
+    });
+  };
+
+  const showUnexpectedStagingPathError = () => {
+    toast.error(t('settings.errorUpdatingStagingPathToastTitle'), {
+      description: t(
+        'settings.unexpectedErrorUpdatingStagingPathToastDescription'
+      ),
+    });
+  };
+
   const handleResetStagingPath = async () => {
     try {
       const result = await window.electronAPI.clearModStagingPath();
       if (result.success) {
-        fetchStagingPathConfig(); // Refresh the config
-        toast.success(t('settings.stagingPathResetToastTitle'), {
-          description: t('settings.stagingPathResetToastDescription'),
-        });
+        await handleStagingPathReset();
       } else {
-        toast.error(t('settings.failedToResetStagingPathToastTitle'), {
-          description: result.error || t('settings.unknownErrorOccurred'),
-        });
+        showResetStagingPathError(result.error);
       }
     } catch (error) {
       console.error('Error resetting mod staging directory:', error);
-      toast.error(t('settings.errorResettingStagingPathToastTitle'), {
-        description: t(
-          'settings.unexpectedErrorResettingStagingPathToastDescription'
-        ),
-      });
+      showUnexpectedResetError();
     }
   };
 
-  const handleLanguageChange = (newLang: string) => {
-    i18n.changeLanguage(newLang);
+  const handleStagingPathReset = async () => {
+    await fetchStagingPathConfig();
+    toast.success(t('settings.stagingPathResetToastTitle'), {
+      description: t('settings.stagingPathResetToastDescription'),
+    });
+  };
+
+  const showResetStagingPathError = (error?: string) => {
+    toast.error(t('settings.failedToResetStagingPathToastTitle'), {
+      description: error || t('settings.unknownErrorOccurred'),
+    });
+  };
+
+  const showUnexpectedResetError = () => {
+    toast.error(t('settings.errorResettingStagingPathToastTitle'), {
+      description: t(
+        'settings.unexpectedErrorResettingStagingPathToastDescription'
+      ),
+    });
+  };
+
+  const handleLanguageChange = (newLanguage: string) => {
+    i18n.changeLanguage(newLanguage);
+
+    const languageDisplayName = getLanguageDisplayName(newLanguage);
     toast.info(t('settings.languageChangedToastTitle'), {
       description: t('settings.languageSetToToastDescription', {
-        language: t(
-          newLang === 'en'
-            ? 'settings.languageEnglish'
-            : 'settings.languageItalian'
-        ),
+        language: languageDisplayName,
       }),
     });
+  };
+
+  const getLanguageDisplayName = (languageCode: string) => {
+    const languageKey =
+      languageCode === 'en'
+        ? 'settings.languageEnglish'
+        : 'settings.languageItalian';
+    return t(languageKey);
+  };
+
+  const getCurrentDisplayPath = () => {
+    if (isLoadingGamePath) return t('settings.loading');
+    return gameFolderPath || t('settings.notSet');
+  };
+
+  const getCurrentStagingPath = () => {
+    if (isLoadingStagingPath) return t('settings.loading');
+    return stagingPathConfig?.activePath || t('settings.loading');
   };
 
   return (
@@ -227,132 +247,34 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
         <ScrollArea className="max-h-[60vh] pr-6">
           <div className="grid gap-6 py-4">
-            {/* Game Path Configuration */}
-            <section>
-              <h3 className="text-lg font-medium text-slate-200 mb-1">
-                {t('settings.gamePathConfigTitle')}
-              </h3>
-              <p className="text-sm text-slate-400 mb-3">
-                {t('settings.gamePathConfigDescription')}
-              </p>
-              <div className="flex items-center space-x-2 mb-2">
-                <Input
-                  type="text"
-                  readOnly
-                  value={
-                    isLoadingGamePath
-                      ? t('settings.loading')
-                      : gameFolderPath || t('settings.notSet')
-                  }
-                  className="flex-grow bg-neutral-700 border-neutral-600 text-slate-300 placeholder:text-neutral-500"
-                  placeholder={t('settings.gamePathInputPlaceholder')}
-                />
-                <Button
-                  onClick={handleSelectGameFolder}
-                  variant="outline"
-                  color="neutral"
-                  className="border-neutral-600 hover:bg-neutral-700"
-                >
-                  {t('settings.changeFolderButton')}
-                </Button>
-              </div>
-              <p className="text-xs text-slate-500">
-                {t('settings.gamePathHint')}
-              </p>
-            </section>
+            <GamePathSection
+              currentPath={getCurrentDisplayPath()}
+              onSelectFolder={handleSelectGameFolder}
+              t={t}
+            />
 
             <Separator className="bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
 
-            {/* Mod Staging Path Configuration */}
-            <section>
-              <h3 className="text-lg font-medium text-slate-200 mb-1">
-                {t('settings.stagingPathConfigTitle')}
-              </h3>
-              <p className="text-sm text-slate-400 mb-3">
-                {t('settings.stagingPathConfigDescription')}
-              </p>
-              <div className="flex items-center space-x-2 mb-2">
-                <Input
-                  type="text"
-                  readOnly
-                  value={
-                    isLoadingStagingPath
-                      ? t('settings.loading')
-                      : stagingPathConfig?.activePath || t('settings.loading') // Or a more specific "Not Set" if applicable
-                  }
-                  className="flex-grow bg-neutral-700 border-neutral-600 text-slate-300 placeholder:text-neutral-500"
-                  placeholder={t('settings.stagingPathInputPlaceholder')}
-                />
-                <Button
-                  onClick={handleSelectStagingFolder}
-                  variant="outline"
-                  color="neutral"
-                  className="border-neutral-600 hover:bg-neutral-700"
-                >
-                  {t('settings.setCustomFolderButton')}
-                </Button>
-              </div>
-              <div className="flex justify-between mb-3">
-                <p className="text-xs text-slate-500">
-                  {t('settings.stagingPathHint')}
-                </p>
-                <Button
-                  onClick={handleResetStagingPath}
-                  variant="link"
-                  className="text-xs text-amber-500 hover:text-amber-400 px-0 h-auto"
-                >
-                  {t('settings.resetToDefaultButton')}
-                </Button>
-              </div>
-            </section>
+            <StagingPathSection
+              currentPath={getCurrentStagingPath()}
+              onSelectFolder={handleSelectStagingFolder}
+              onResetPath={handleResetStagingPath}
+              t={t}
+            />
 
             <Separator className="bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
 
-            {/* Theme Selector */}
             <section>
               <ThemeSelector />
             </section>
 
             <Separator className="bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
 
-            {/* Language Selection */}
-            <section>
-              <h3 className="text-lg font-medium text-slate-200 mb-1">
-                {t('settings.languageSelectionTitle')}
-              </h3>
-              <p className="text-sm text-slate-400 mb-3">
-                {t('settings.languageSelectionDescription')}
-              </p>
-              <div className="grid grid-cols-2 items-center gap-4">
-                <Label className="text-slate-300 text-right">
-                  {t('settings.languageLabel')}
-                </Label>
-                <Select
-                  value={i18n.language.split('-')[0]}
-                  onValueChange={handleLanguageChange}
-                >
-                  <SelectTrigger className="w-full bg-neutral-700 border-neutral-600 text-slate-300">
-                    <SelectValue
-                      placeholder={t('settings.selectLanguagePlaceholder')}
-                    />
-                  </SelectTrigger>
-                  <SelectContent className="bg-neutral-700 border-neutral-600 text-slate-300">
-                    <SelectItem
-                      value="en"
-                      className="hover:bg-neutral-600 focus:bg-neutral-600"
-                    >
-                      {t('settings.languageEnglish')}
-                    </SelectItem>
-                    <SelectItem
-                      value="it"
-                      className="hover:bg-neutral-600 focus:bg-neutral-600"
-                    >
-                      {t('settings.languageItalian')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </section>
+            <LanguageSection
+              currentLanguage={i18n.language.split('-')[0]}
+              onLanguageChange={handleLanguageChange}
+              t={t}
+            />
           </div>
         </ScrollArea>
 
@@ -368,5 +290,139 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     </Dialog>
   );
 };
+
+interface GamePathSectionProps {
+  currentPath: string;
+  onSelectFolder: () => void;
+  t: (key: string) => string;
+}
+
+const GamePathSection: React.FC<GamePathSectionProps> = ({
+  currentPath,
+  onSelectFolder,
+  t,
+}) => (
+  <section>
+    <h3 className="text-lg font-medium text-slate-200 mb-1">
+      {t('settings.gamePathConfigTitle')}
+    </h3>
+    <p className="text-sm text-slate-400 mb-3">
+      {t('settings.gamePathConfigDescription')}
+    </p>
+    <div className="flex items-center space-x-2 mb-2">
+      <Input
+        type="text"
+        readOnly
+        value={currentPath}
+        className="flex-grow bg-neutral-700 border-neutral-600 text-slate-300 placeholder:text-neutral-500"
+        placeholder={t('settings.gamePathInputPlaceholder')}
+      />
+      <Button
+        onClick={onSelectFolder}
+        variant="outline"
+        color="neutral"
+        className="border-neutral-600 hover:bg-neutral-700"
+      >
+        {t('settings.changeFolderButton')}
+      </Button>
+    </div>
+    <p className="text-xs text-slate-500">{t('settings.gamePathHint')}</p>
+  </section>
+);
+
+interface StagingPathSectionProps {
+  currentPath: string;
+  onSelectFolder: () => void;
+  onResetPath: () => void;
+  t: (key: string) => string;
+}
+
+const StagingPathSection: React.FC<StagingPathSectionProps> = ({
+  currentPath,
+  onSelectFolder,
+  onResetPath,
+  t,
+}) => (
+  <section>
+    <h3 className="text-lg font-medium text-slate-200 mb-1">
+      {t('settings.stagingPathConfigTitle')}
+    </h3>
+    <p className="text-sm text-slate-400 mb-3">
+      {t('settings.stagingPathConfigDescription')}
+    </p>
+    <div className="flex items-center space-x-2 mb-2">
+      <Input
+        type="text"
+        readOnly
+        value={currentPath}
+        className="flex-grow bg-neutral-700 border-neutral-600 text-slate-300 placeholder:text-neutral-500"
+        placeholder={t('settings.stagingPathInputPlaceholder')}
+      />
+      <Button
+        onClick={onSelectFolder}
+        variant="outline"
+        color="neutral"
+        className="border-neutral-600 hover:bg-neutral-700"
+      >
+        {t('settings.setCustomFolderButton')}
+      </Button>
+    </div>
+    <div className="flex justify-between mb-3">
+      <p className="text-xs text-slate-500">{t('settings.stagingPathHint')}</p>
+      <Button
+        onClick={onResetPath}
+        variant="link"
+        className="text-xs text-amber-500 hover:text-amber-400 px-0 h-auto"
+      >
+        {t('settings.resetToDefaultButton')}
+      </Button>
+    </div>
+  </section>
+);
+
+interface LanguageSectionProps {
+  currentLanguage: string;
+  onLanguageChange: (language: string) => void;
+  t: (key: string) => string;
+}
+
+const LanguageSection: React.FC<LanguageSectionProps> = ({
+  currentLanguage,
+  onLanguageChange,
+  t,
+}) => (
+  <section>
+    <h3 className="text-lg font-medium text-slate-200 mb-1">
+      {t('settings.languageSelectionTitle')}
+    </h3>
+    <p className="text-sm text-slate-400 mb-3">
+      {t('settings.languageSelectionDescription')}
+    </p>
+    <div className="grid grid-cols-2 items-center gap-4">
+      <Label className="text-slate-300 text-right">
+        {t('settings.languageLabel')}
+      </Label>
+      <Select value={currentLanguage} onValueChange={onLanguageChange}>
+        <SelectTrigger className="w-full bg-neutral-700 border-neutral-600 text-slate-300">
+          <SelectValue placeholder={t('settings.selectLanguagePlaceholder')} />
+        </SelectTrigger>
+        <SelectContent className="bg-neutral-700 border-neutral-600 text-slate-300">
+          <SelectItem
+            value="en"
+            className="hover:bg-neutral-600 focus:bg-neutral-600"
+          >
+            {t('settings.languageEnglish')}
+          </SelectItem>
+          <SelectItem
+            value="it"
+            className="hover:bg-neutral-600 focus:bg-neutral-600"
+          >
+            {t('settings.languageItalian')}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  </section>
+);
 
 export default SettingsDialog;

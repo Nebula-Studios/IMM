@@ -16,8 +16,11 @@ import { toast } from 'sonner';
 
 interface StatusBarProps {
   className?: string;
-  onTriggerUpdateCheck?: () => void; // Mantenuto per compatibilità, ma non più usato
 }
+
+const NEXUS_MODS_LINK = 'https://www.nexusmods.com/inzoi';
+const GITHUB_ISSUES_LINK =
+  'https://github.com/Nebula-Studios/IMM/issues/new/choose';
 
 const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
   const { t } = useTranslation();
@@ -30,16 +33,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
     downloadUpdate,
   } = useUpdateStatus();
 
-  const nexusModsLink = 'https://www.nexusmods.com/inzoi';
+  const isDevelopment = !window.electronAPI || import.meta.env.DEV;
 
-  // Determina il messaggio di stato
   const getUpdateStatusMessage = () => {
-    if (isChecking) {
-      return t('statusBar.checkingForUpdates');
-    }
-    if (updateError) {
-      return t('statusBar.updateError');
-    }
+    if (isChecking) return t('statusBar.checkingForUpdates');
+    if (updateError) return t('statusBar.updateError');
     if (isUpdateAvailable && versionInfo) {
       return t('statusBar.updateAvailable', {
         version: versionInfo.newVersion,
@@ -48,80 +46,83 @@ const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
     return t('statusBar.noUpdates');
   };
 
-  const updateStatusMessage = getUpdateStatusMessage();
-
   const handleCheckForUpdates = () => {
     toast.promise(
       new Promise((resolve) => {
         checkForUpdates();
-        // Risolviamo subito la promise per evitare che il toast rimanga in loading
         resolve(undefined);
       }),
       {
         loading: t('statusBar.checkingForUpdates'),
-        success: () => {
-          // Il messaggio di successo sarà gestito dall'hook quando riceve la risposta
-          return '';
-        },
+        success: () => '',
         error: t('statusBar.updateError'),
       }
     );
   };
 
   const handleDownloadUpdate = () => {
-    const isDevelopment = !window.electronAPI || import.meta.env.DEV;
     downloadUpdate();
-
-    if (isDevelopment) {
-      toast.info(t('statusBar.viewOnGitHub'));
-    } else {
-      toast.info(t('statusBar.downloadUpdate'));
-    }
+    const message = isDevelopment
+      ? t('statusBar.viewOnGitHub')
+      : t('statusBar.downloadUpdate');
+    toast.info(message);
   };
 
-  // Determina il testo del pulsante in base alla modalità
   const getDownloadButtonText = () => {
-    const isDevelopment = !window.electronAPI || import.meta.env.DEV;
     return isDevelopment
       ? t('statusBar.viewOnGitHub')
       : t('statusBar.downloadUpdate');
   };
 
   const handleNexusLinkClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Previene il comportamento predefinito del link #
-    if (window.electronAPI && window.electronAPI.sendToMainLog) {
+    e.preventDefault();
+    if (window.electronAPI?.sendToMainLog) {
       window.electronAPI.sendToMainLog(
         'info',
         'Nexus Mods link clicked',
-        nexusModsLink
+        NEXUS_MODS_LINK
       );
     }
-    window.electronAPI.openExternalLink(nexusModsLink);
+    window.electronAPI.openExternalLink(NEXUS_MODS_LINK);
   };
 
-  // Determina icona e colore in base allo stato
-  let statusIcon;
-  let statusTextColor = 'text-slate-400';
+  const handleOpenLink = (url: string) => {
+    window.electronAPI.openExternalLink(url);
+  };
 
-  if (updateError) {
-    statusIcon = <AlertCircle size={15} className="mr-1.5 text-red-400" />;
-    statusTextColor = 'text-red-400';
-  } else if (isUpdateAvailable) {
-    statusIcon = <Info size={15} className="mr-1.5 text-blue-400" />;
-    statusTextColor = 'text-blue-400';
-  } else if (isChecking) {
-    statusIcon = (
-      <RefreshCw size={15} className="mr-1.5 text-yellow-400 animate-spin" />
-    );
-    statusTextColor = 'text-yellow-400';
-  } else {
-    statusIcon = <CheckCircle size={15} className="mr-1.5 text-green-400" />;
-    statusTextColor = 'text-green-400';
-  }
+  const getStatusIconAndColor = () => {
+    if (updateError) {
+      return {
+        icon: <AlertCircle size={15} className="mr-1.5 text-red-400" />,
+        textColor: 'text-red-400',
+      };
+    }
+    if (isUpdateAvailable) {
+      return {
+        icon: <Info size={15} className="mr-1.5 text-blue-400" />,
+        textColor: 'text-blue-400',
+      };
+    }
+    if (isChecking) {
+      return {
+        icon: (
+          <RefreshCw
+            size={15}
+            className="mr-1.5 text-yellow-400 animate-spin"
+          />
+        ),
+        textColor: 'text-yellow-400',
+      };
+    }
+    return {
+      icon: <CheckCircle size={15} className="mr-1.5 text-green-400" />,
+      textColor: 'text-green-400',
+    };
+  };
 
-  function handleOpenLink(arg0: string): void {
-    window.electronAPI.openExternalLink(arg0);
-  }
+  const { icon: statusIcon, textColor: statusTextColor } =
+    getStatusIconAndColor();
+  const updateStatusMessage = getUpdateStatusMessage();
 
   return (
     <footer
@@ -167,18 +168,14 @@ const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
         variant="ghost"
         color="warning"
         size="sm"
-        onClick={() =>
-          handleOpenLink(
-            'https://github.com/Nebula-Studios/IMM/issues/new/choose'
-          )
-        }
+        onClick={() => handleOpenLink(GITHUB_ISSUES_LINK)}
         title={t('menuBar.reportBugTooltip')}
       >
         <HelpCircle className="h-4 w-4 mr-1" />
         {t('menuBar.reportBugButton')}
       </Button>
       <a
-        href={nexusModsLink} // Manteniamo href per semantica e accessibilità
+        href={NEXUS_MODS_LINK}
         onClick={handleNexusLinkClick}
         title={t('statusBar.visitNexusMods')}
         className="flex items-center text-slate-400 hover:text-blue-400 hover:underline transition-colors duration-150"

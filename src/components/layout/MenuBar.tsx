@@ -3,19 +3,19 @@ import { useTranslation } from 'react-i18next';
 import {
   Settings,
   FolderX,
-  HelpCircle,
   RefreshCw,
   AlertTriangle,
   Play,
 } from 'lucide-react';
-import { Button } from '../ui/button.tsx'; // Corretto percorso
+import { Button } from '../ui/button.tsx';
 import { cn } from '../../lib/utils.ts';
-// import { APP_VERSION } from '@/lib/constants.ts';
-import appIcon from '/icon.svg'; // Importa l'icona
-import ProfileSelector from '../profiles/ProfileSelector.tsx';
+import appIcon from '/icon.svg';
+
+import packageJson from '../../../package.json' with { type: 'json' };
 import ManageProfilesDialog from '../profiles/ManageProfilesDialog.tsx';
-import { getProfileStoreState } from '../../store/profileStore.ts'; // Importa la funzione corretta
-import { ProfileService } from '../../services/profileService.ts'; // Importa la classe come named export
+
+const APP_VERSION = packageJson.version;
+import { ProfileService } from '../../services/profileService.ts';
 import { ModProfile } from '../../types/profiles.ts';
 import {
   AlertDialog,
@@ -25,7 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../ui/alert-dialog.tsx'; // Importa AlertDialog
+} from '../ui/alert-dialog.tsx';
 
 export interface MenuBarProps {
   gameFolderPath: string | null;
@@ -46,29 +46,17 @@ const MenuBar: React.FC<MenuBarProps> = ({
   const [isManageProfilesDialogOpen, setIsManageProfilesDialogOpen] =
     useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const profileService = new ProfileService(); // Istanza del ProfileService
-
-  // Stato per forzare il re-render quando i profili cambiano
-  const [profileUpdateCounter, setProfileUpdateCounter] = useState(0);
-
-  // Stato per l'AlertDialog dei mod mancanti
   const [isMissingModsAlertOpen, setIsMissingModsAlertOpen] = useState(false);
   const [missingModsList, setMissingModsList] = useState<string[]>([]);
   const [loadingProfileName, setLoadingProfileName] = useState<string>('');
+  const [profiles, setProfiles] = useState<ModProfile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
 
-  // Recupera i dati dei profili dallo store e li tiene nello stato locale
-  const [profiles, setProfiles] = useState<ModProfile[]>(
-    profileService.getProfiles()
-  );
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(
-    profileService.getActiveProfileId()
-  );
-
+  const profileService = new ProfileService();
   const activeProfile = profiles.find(
-    (profile: ModProfile) => profile.id === activeProfileId
+    (profile) => profile.id === activeProfileId
   );
 
-  // Funzione per aggiornare lo stato locale della MenuBar dai dati dello store
   const refreshProfilesFromStore = () => {
     console.log('[MenuBar] Refreshing profiles from store');
     setProfiles(profileService.getProfiles());
@@ -76,35 +64,34 @@ const MenuBar: React.FC<MenuBarProps> = ({
   };
 
   useEffect(() => {
+    refreshProfilesFromStore();
+  }, []);
+
+  useEffect(() => {
     console.log('[MenuBar] Rendering with gameFolderPath:', gameFolderPath);
-    console.log('[MenuBar] Profile Data (counter', profileUpdateCounter, '):', {
+    console.log('[MenuBar] Profile Data:', {
       profiles,
       activeProfileId,
       activeProfile,
     });
-  }, [
-    gameFolderPath,
-    profiles,
-    activeProfileId,
-    activeProfile,
-    profileUpdateCounter,
-  ]);
+  }, [gameFolderPath, profiles, activeProfileId, activeProfile]);
 
   const handleProfileChange = async (profileId: string) => {
     console.log(`[MenuBar] Profile change requested: ${profileId}`);
-    const profileToLoad = profiles.find((p) => p.id === profileId);
+
+    const profileToLoad = profiles.find((profile) => profile.id === profileId);
     if (profileToLoad) {
-      setLoadingProfileName(profileToLoad.name); // Salva il nome per l'alert
+      setLoadingProfileName(profileToLoad.name);
     }
 
     const result = await profileService.loadProfile(profileId);
+
     if (result.success) {
-      refreshProfilesFromStore(); // Aggiorna la UI dopo il caricamento
+      refreshProfilesFromStore();
     } else if (result.missingMods && result.missingMods.length > 0) {
       setMissingModsList(result.missingMods);
       setIsMissingModsAlertOpen(true);
     } else {
-      // Caso generico di fallimento non gestito specificamente (es. errore in applyProfileConfiguration)
       console.error('[MenuBar] Failed to load profile for an unknown reason.');
       setMissingModsList([
         'Errore sconosciuto durante il caricamento del profilo.',
@@ -120,7 +107,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
     try {
       const newProfile = await profileService.createProfile(name, description);
       console.log('[MenuBar] Profile created via dialog:', newProfile);
-      refreshProfilesFromStore(); // Aggiorna la UI dopo la creazione
+      refreshProfilesFromStore();
       return newProfile;
     } catch (error) {
       console.error('[MenuBar] Error creating profile from dialog:', error);
@@ -132,7 +119,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
     try {
       await profileService.deleteProfile(profileIdToDelete);
       console.log(`[MenuBar] Profile ${profileIdToDelete} deleted via dialog.`);
-      refreshProfilesFromStore(); // Aggiorna la UI dopo l'eliminazione
+      refreshProfilesFromStore();
     } catch (error) {
       console.error(
         `[MenuBar] Error deleting profile ${profileIdToDelete} from dialog:`,
@@ -151,7 +138,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
       console.log(
         `[MenuBar] Profile ${profileIdToRename} renamed to "${newName}" via dialog.`
       );
-      refreshProfilesFromStore(); // Aggiorna la UI dopo la rinomina
+      refreshProfilesFromStore();
     } catch (error) {
       console.error(
         `[MenuBar] Error renaming profile ${profileIdToRename} from dialog:`,
@@ -162,7 +149,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
   };
 
   const handleManageProfiles = () => {
-    refreshProfilesFromStore(); // Assicura che i dati siano freschi prima di aprire il dialogo
+    refreshProfilesFromStore();
     setIsManageProfilesDialogOpen(true);
   };
 
@@ -171,17 +158,17 @@ const MenuBar: React.FC<MenuBarProps> = ({
   };
 
   const handleRefreshClick = async () => {
-    if (isRefreshing) return; // Previene click multipli
+    if (isRefreshing) return;
 
     setIsRefreshing(true);
-    const minAnimationTime = 500; // Millisecondi
+    const MIN_ANIMATION_TIME = 500;
     const startTime = Date.now();
 
     try {
       await onRefreshMods();
     } finally {
       const elapsedTime = Date.now() - startTime;
-      const remainingTime = minAnimationTime - elapsedTime;
+      const remainingTime = MIN_ANIMATION_TIME - elapsedTime;
 
       if (remainingTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, remainingTime));
@@ -197,9 +184,10 @@ const MenuBar: React.FC<MenuBarProps> = ({
           <img src={appIcon} alt="App Icon" className="h-6 w-6" />
           <h1 className="text-lg font-semibold tracking-tight">
             InZOI Mod Manager{' '}
-            {/* <span className="text-xs text-slate-400">v{APP_VERSION}</span> */}
+            <span className="text-xs text-slate-400">v{APP_VERSION}</span>
           </h1>
         </div>
+
         <div className="flex items-center space-x-2">
           {/* {activeProfile && ( // Mostra il selettore solo se c'è un profilo attivo
             <ProfileSelector
@@ -209,7 +197,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
               onManageProfiles={handleManageProfiles}
             />
           )} */}
-
           <Button
             variant="outline"
             color="success"
@@ -237,7 +224,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
             />
           </Button>
 
-          {/* Pulsante per resettare il percorso - SOLO SVILUPPO */}
           {process.env.NODE_ENV === 'development' && (
             <Button
               variant="default"
@@ -273,7 +259,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
         onRenameProfile={handleRenameProfileInDialog}
       />
 
-      {/* AlertDialog per i mod mancanti */}
       <AlertDialog
         open={isMissingModsAlertOpen}
         onOpenChange={setIsMissingModsAlertOpen}

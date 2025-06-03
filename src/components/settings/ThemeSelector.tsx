@@ -10,14 +10,27 @@ import {
   SelectValue,
 } from '@/components/ui/select.tsx';
 
+const AVAILABLE_THEMES = ['light', 'dark', 'system'] as const;
+type ThemeOption = (typeof AVAILABLE_THEMES)[number];
+
+const COMMON_STYLES = {
+  selectTrigger: 'w-full bg-neutral-700 border-neutral-600 text-slate-300',
+  selectContent: 'bg-neutral-700 border-neutral-600 text-slate-300',
+  selectItem: 'hover:bg-neutral-600 focus:bg-neutral-600',
+} as const;
+
 export function ThemeSelector() {
   const { theme, setTheme } = useTheme();
   const { t } = useTranslation();
 
   const handleThemeChange = (value: string) => {
-    if (value === 'light' || value === 'dark' || value === 'system') {
+    if (isValidTheme(value)) {
       setTheme(value);
     }
+  };
+
+  const isValidTheme = (value: string): value is ThemeOption => {
+    return AVAILABLE_THEMES.includes(value as ThemeOption);
   };
 
   return (
@@ -33,28 +46,21 @@ export function ThemeSelector() {
           {t('settings.themeLabel')}
         </Label>
         <Select value={theme} onValueChange={handleThemeChange}>
-          <SelectTrigger className="w-full bg-neutral-700 border-neutral-600 text-slate-300">
+          <SelectTrigger className={COMMON_STYLES.selectTrigger}>
             <SelectValue placeholder={t('settings.selectThemePlaceholder')} />
           </SelectTrigger>
-          <SelectContent className="bg-neutral-700 border-neutral-600 text-slate-300">
-            <SelectItem
-              value="light"
-              className="hover:bg-neutral-600 focus:bg-neutral-600"
-            >
-              {t('settings.themeLight')}
-            </SelectItem>
-            <SelectItem
-              value="dark"
-              className="hover:bg-neutral-600 focus:bg-neutral-600"
-            >
-              {t('settings.themeDark')}
-            </SelectItem>
-            <SelectItem
-              value="system"
-              className="hover:bg-neutral-600 focus:bg-neutral-600"
-            >
-              {t('settings.themeSystem')}
-            </SelectItem>
+          <SelectContent className={COMMON_STYLES.selectContent}>
+            {AVAILABLE_THEMES.map((themeOption) => (
+              <SelectItem
+                key={themeOption}
+                value={themeOption}
+                className={COMMON_STYLES.selectItem}
+              >
+                {t(
+                  `settings.theme${themeOption.charAt(0).toUpperCase() + themeOption.slice(1)}`
+                )}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

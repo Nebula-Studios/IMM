@@ -26,31 +26,43 @@ const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   onManageProfiles,
 }) => {
   const { t } = useTranslation();
+
+  const displayedProfileName =
+    activeProfile?.name || t('profiles.noProfileSelected');
+  const hasProfiles = profiles.length > 0;
+  const isActiveProfile = (profileId: string) =>
+    activeProfile?.id === profileId;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="flex items-center gap-2">
           <User className="h-4 w-4" />
-          <span>{activeProfile ? activeProfile.name : t('profiles.noProfileSelected')}</span>
-          <ChevronDown className="h-4 w-4" /> {/* La rotazione è gestita da DropdownMenu */}
+          <span>{displayedProfileName}</span>
+          <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>{t('profiles.availableProfiles')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {profiles.length === 0 && (
-          <DropdownMenuItem disabled>{t('profiles.noProfilesCreated')}</DropdownMenuItem>
-        )}
-        {profiles.map((profile) => (
-          <DropdownMenuItem
-            key={profile.id}
-            onClick={() => onProfileChange(profile.id)}
-            className="flex items-center justify-between"
-          >
-            <span>{profile.name}</span>
-            {activeProfile?.id === profile.id && <Check className="h-4 w-4" />}
+
+        {!hasProfiles ? (
+          <DropdownMenuItem disabled>
+            {t('profiles.noProfilesCreated')}
           </DropdownMenuItem>
-        ))}
+        ) : (
+          profiles.map((profile) => (
+            <DropdownMenuItem
+              key={profile.id}
+              onClick={() => onProfileChange(profile.id)}
+              className="flex items-center justify-between"
+            >
+              <span>{profile.name}</span>
+              {isActiveProfile(profile.id) && <Check className="h-4 w-4" />}
+            </DropdownMenuItem>
+          ))
+        )}
+
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={onManageProfiles}
