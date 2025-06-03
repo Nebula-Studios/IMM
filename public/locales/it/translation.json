@@ -4,9 +4,9 @@
   },
   "menuBar": {
     "missingModsAlert": {
-      "title": "Mod Mancanti nel Profilo",
-      "descriptionPart1": "Impossibile caricare completamente il profilo \"<strong>{loadingProfileName}</strong>\" perché i seguenti mod non sono stati trovati:",
-      "descriptionPart2": "Il profilo non è stato caricato. Assicurati che tutti i mod necessari siano installati e riprova."
+      "title": "Alcuni Mod Risultano Mancanti!",
+      "descriptionPart1": "Non siamo riusciti a caricare completamente il tuo profilo \"<strong>{loadingProfileName}</strong>\" perché questi mod sembrano non essere presenti:",
+      "descriptionPart2": "Per ora, il profilo non è stato caricato. Assicurati che tutti i mod elencati siano installati, quindi prova a caricare nuovamente il profilo."
     }
   },
   "modManager": {
@@ -22,7 +22,7 @@
     }
   },
   "statusBar": {
-    "noUpdates": "Nessun aggiornamento disponibile.",
+    "noUpdates": "Tutto aggiornato! Nessun nuovo aggiornamento per ora.",
     "visitNexusMods": "Visita InZOI su Nexus Mods",
     "inzoiOnNexusMods": "InZOI su Nexus Mods"
   },
@@ -32,7 +32,11 @@
       "disable": "Disabilita",
       "remove": "Rimuovi"
     },
-    "dragHandleTooltip": "Trascina per spostare o riordinare"
+    "dragHandleTooltip": "Trascina per spostare o riordinare",
+    "status": {
+      "enabled": "Abilitato",
+      "disabled": "Disabilitato"
+    }
   },
   "modDropzone": {
     "dropActive": "Rilascia i file .pak, .zip, .rar o .7z qui...",
@@ -43,10 +47,10 @@
     "dragToDisable": "Trascina i mod qui per disabilitarli"
   },
   "toast": {
-    "refreshingModList": "Aggiornamento lista mod...",
-    "modListRefreshedSuccess": "Lista mod aggiornata con successo!",
-    "modListRefreshedError": "Impossibile aggiornare la lista mod: {error}",
-    "modListRefreshCriticalError": "Errore critico durante l'aggiornamento della lista mod: {errorMessage}"
+    "refreshingModList": "Un attimo, stiamo aggiornando la tua lista dei mod...",
+    "modListRefreshedSuccess": "Ottimo! La tua lista dei mod è stata aggiornata.",
+    "modListRefreshedError": "Ops! Non siamo riusciti ad aggiornare la tua lista dei mod. Errore: {error}",
+    "modListRefreshCriticalError": "Oh no! Si è verificato un errore critico durante l'aggiornamento della lista dei mod: {errorMessage}. Riprova o contatta il supporto se il problema persiste."
   },
   "profiles": {
     "autoSaveSettingsTitle": "Impostazioni Auto-Salvataggio",
@@ -68,29 +72,29 @@
     "availableProfiles": "Profili Disponibili",
     "noProfilesCreated": "Nessun profilo creato",
     "manageProfilesAction": "Gestisci Profili",
-    "deleteConfirmMessage": "Sei sicuro di voler eliminare il profilo \"{{name}}\"? Questa azione non può essere annullata.",
-    "cannotDeleteDefault": "Il profilo Default non può essere eliminato.",
+    "deleteConfirmMessage": "Solo per conferma: sei sicuro di voler eliminare definitivamente il profilo \"{{name}}\"? L'operazione non potrà essere annullata.",
+    "cannotDeleteDefault": "Attenzione! Il profilo 'Default' è speciale e non può essere eliminato.",
     "deleteButtonTooltip": "Elimina profilo",
     "exportButtonTooltip": "Esporta profilo",
     "exportDialogTitle": "Salva Profilo Come...",
     "importDialogTitle": "Seleziona Profilo da Importare",
-    "exportSuccessMessage": "Profilo esportato con successo in \"{{fileName}}\".",
-    "importSuccessMessage": "Profilo \"{{name}}\" importato con successo.",
+    "exportSuccessMessage": "Successo! Il tuo profilo è stato esportato in \"{{fileName}}\".",
+    "importSuccessMessage": "Fatto! Il profilo \"{{name}}\" è stato importato correttamente.",
     "errors": {
-      "emptyName": "Il nome del profilo non può essere vuoto.",
-      "creationFailed": "Creazione del profilo fallita.",
-      "deletionFailed": "Eliminazione del profilo fallita.",
-      "renameFailed": "Rinomina del profilo fallita.",
-      "emptyNameOnRename": "Il nuovo nome del profilo non può essere vuoto.",
-      "autoSaveToggleFailed": "Impossibile modificare l'impostazione di auto-salvataggio.",
-      "exportFailedGeneral": "Esportazione profilo fallita.",
-      "exportWriteFailed": "Impossibile scrivere il profilo su file: {{error}}",
-      "exportFailed": "Esportazione profilo fallita: {{error}}",
-      "importReadFailed": "Impossibile leggere il file del profilo: {{error}}",
-      "importParseFailed": "Impossibile analizzare il JSON del profilo: {{error}}",
-      "importServiceFailed": "Importazione profilo fallita: {{error}}",
-      "importFailedGeneral": "Importazione profilo fallita: {{error}}",
-      "loadFailed": "Errore durante il caricamento del profilo: {{error}}"
+      "emptyName": "Inserisci un nome per il tuo profilo. Non può essere lasciato vuoto!",
+      "creationFailed": "Spiacenti, non siamo riusciti a creare il tuo nuovo profilo. Riprova.",
+      "deletionFailed": "Hmm, non siamo riusciti a eliminare il profilo. Riprova.",
+      "renameFailed": "Ops! Non siamo riusciti a rinominare il profilo. Prova di nuovo.",
+      "emptyNameOnRename": "Sembra che il nuovo nome del profilo sia vuoto. Inserisci un nome.",
+      "autoSaveToggleFailed": "Non siamo riusciti ad aggiornare l'impostazione di salvataggio automatico. Riprova.",
+      "exportFailedGeneral": "Spiacenti, non siamo riusciti a esportare il tuo profilo. Riprova.",
+      "exportWriteFailed": "Si è verificato un problema durante il salvataggio del profilo su file. Errore: {{error}}. Controlla i permessi o prova una posizione diversa.",
+      "exportFailed": "L'esportazione del profilo non è stata completata correttamente. Errore: {{error}}. Riprova.",
+      "importReadFailed": "Non siamo riusciti a leggere il file del profilo. Errore: {{error}}. Assicurati che il file sia accessibile e non corrotto.",
+      "importParseFailed": "Il file del profilo sembra essere in un formato non corretto. Non siamo riusciti a interpretarlo. Errore: {{error}}.",
+      "importServiceFailed": "Qualcosa è andato storto durante il processo di importazione del profilo. Errore: {{error}}. Riprova.",
+      "importFailedGeneral": "Non siamo riusciti a importare il tuo profilo. Errore: {{error}}. Controlla il file e riprova.",
+      "loadFailed": "Ops! Abbiamo avuto problemi a caricare il tuo profilo. Errore: {{error}}. Prova a selezionarlo di nuovo."
     }
   },
   "common": {

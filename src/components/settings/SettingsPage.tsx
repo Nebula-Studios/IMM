@@ -193,8 +193,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 mx-auto">
-      <Card className="bg-neutral-850 border-neutral-700 shadow-xl flex flex-col h-[85vh] overflow-hidden">
-        <CardHeader className="border-b border-neutral-700">
+      <Card className="bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 backdrop-blur-xl border-neutral-700/80 shadow-2xl hover:shadow-neutral-900/50 flex flex-col h-[85vh] overflow-hidden transition-all duration-300">
+        <CardHeader className="border-b border-neutral-700/60">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <FolderCog className="h-6 w-6 mr-3 text-slate-300" />
@@ -249,7 +249,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             </p>
           </section>
 
-          <Separator className="my-6 bg-neutral-700" />
+          <Separator className="my-6 bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
 
           <section>
             <h3 className="text-lg font-medium text-slate-200 mb-1">
@@ -294,13 +294,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onClose }) => {
             </div>
           </section>
 
-          <Separator className="my-6 bg-neutral-700" />
+          <Separator className="my-6 bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
 
           <section className="mb-8">
             <ThemeSelector />
           </section>
         
-          <Separator className="my-6 bg-neutral-700" />
+          <Separator className="my-6 bg-gradient-to-r from-transparent via-neutral-600 to-transparent" />
         
           <section>
             <h3 className="text-lg font-medium text-slate-200 mb-1">

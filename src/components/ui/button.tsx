@@ -10,15 +10,15 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow hover:bg-primary/90',
+          'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg hover:shadow-blue-500/30 hover:from-blue-500 hover:to-blue-400 active:scale-95',
         destructive:
-          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+          'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg hover:shadow-red-500/30 hover:from-red-500 hover:to-red-400 active:scale-95',
         outline:
-          'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+          'border border-neutral-600 bg-gradient-to-r from-neutral-800/80 to-neutral-700/80 backdrop-blur-sm shadow-sm hover:border-neutral-500 hover:bg-gradient-to-r hover:from-neutral-700/90 hover:to-neutral-600/90 text-slate-200 hover:text-white active:scale-95',
         secondary:
-          'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'bg-gradient-to-r from-neutral-700 to-neutral-600 text-slate-200 shadow-sm hover:from-neutral-600 hover:to-neutral-500 hover:text-white active:scale-95',
+        ghost: 'hover:bg-neutral-700/50 hover:text-slate-200 backdrop-blur-sm',
+        link: 'text-blue-400 underline-offset-4 hover:underline hover:text-blue-300',
       },
       size: {
         default: 'h-9 px-4 py-2',

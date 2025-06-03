@@ -174,9 +174,9 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
   };
 
   const modalOverlayStyle =
-    'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
+    'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md';
   const glassCardStyle =
-    'p-8 bg-neutral-800/60 backdrop-blur-lg rounded-xl shadow-2xl border border-neutral-700 flex flex-col items-center text-center max-w-lg w-full mx-4';
+    'p-8 bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 backdrop-blur-xl rounded-xl shadow-2xl border border-neutral-700/80 flex flex-col items-center text-center max-w-lg w-full mx-4 transition-all duration-300 hover:shadow-neutral-900/50';
 
   if (isLoadingInitialCheck) {
     return (
@@ -230,7 +230,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
             onClick={handleSelectGameFolder}
             disabled={isProcessing}
             size="lg"
-            className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/50 transform transition-all duration-150"
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg hover:shadow-blue-500/50 active:scale-95 transition-all duration-300"
           >
             {isProcessing ? (
               <>
@@ -301,7 +301,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
               onClick={handleSelectStagingFolder}
               disabled={isProcessing}
               size="lg"
-              className="flex-1 bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/50 transform transition-all duration-150"
+              className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white shadow-lg hover:shadow-green-500/50 active:scale-95 transition-all duration-300"
             >
               {isProcessing ? (
                 <>
@@ -316,7 +316,7 @@ const GameFolderSetup: React.FC<GameFolderSetupProps> = ({
               disabled={isProcessing}
               variant="outline"
               size="lg"
-              className="flex-1 border-neutral-500 hover:bg-neutral-700 hover:border-neutral-400"
+              className="flex-1 border-neutral-600 bg-gradient-to-r from-neutral-800/80 to-neutral-700/80 hover:from-neutral-700/90 hover:to-neutral-600/90 hover:border-neutral-500 transition-all duration-300"
             >
               {isProcessing ? (
                 <>

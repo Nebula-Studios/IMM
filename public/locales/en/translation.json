@@ -4,9 +4,9 @@
   },
   "menuBar": {
     "missingModsAlert": {
-      "title": "Missing Mods in Profile",
-      "descriptionPart1": "Could not fully load profile \"<strong>{loadingProfileName}</strong>\" because the following mods were not found:",
-      "descriptionPart2": "The profile was not loaded. Ensure all necessary mods are installed and try again."
+      "title": "Some Mods Are Missing!",
+      "descriptionPart1": "We couldn't fully load your profile \"<strong>{loadingProfileName}</strong>\" because these mods seem to be missing:",
+      "descriptionPart2": "For now, the profile hasn't been loaded. Please make sure all the listed mods are installed, then try loading the profile again."
     }
   },
   "modManager": {
@@ -22,7 +22,7 @@
     }
   },
   "statusBar": {
-    "noUpdates": "No updates available.",
+    "noUpdates": "You're all set! No new updates right now.",
     "visitNexusMods": "Visit InZOI on Nexus Mods",
     "inzoiOnNexusMods": "InZOI on Nexus Mods"
   },
@@ -32,7 +32,11 @@
       "disable": "Disable",
       "remove": "Remove"
     },
-    "dragHandleTooltip": "Drag to move or reorder"
+    "dragHandleTooltip": "Drag to move or reorder",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    }
   },
   "modDropzone": {
     "dropActive": "Drop the .pak, .zip, .rar, or .7z files here ...",
@@ -43,10 +47,10 @@
     "dragToDisable": "Drag mods here to disable"
   },
   "toast": {
-    "refreshingModList": "Refreshing mod list...",
-    "modListRefreshedSuccess": "Mod list refreshed successfully!",
-    "modListRefreshedError": "Failed to refresh mod list: {error}",
-    "modListRefreshCriticalError": "Critical error during mod list refresh: {errorMessage}"
+    "refreshingModList": "Just a moment, refreshing your mod list...",
+    "modListRefreshedSuccess": "Great! Your mod list has been updated.",
+    "modListRefreshedError": "Oops! We couldn't refresh your mod list. Error: {error}",
+    "modListRefreshCriticalError": "Oh no! A critical error occurred while refreshing the mod list: {errorMessage}. Please try again or contact support if the issue persists."
   },
   "profiles": {
     "autoSaveSettingsTitle": "Auto-Save Settings",
@@ -68,29 +72,29 @@
     "availableProfiles": "Available Profiles",
     "noProfilesCreated": "No profiles created",
     "manageProfilesAction": "Manage Profiles",
-    "deleteConfirmMessage": "Are you sure you want to delete the profile \"{{name}}\"? This action cannot be undone.",
-    "cannotDeleteDefault": "The Default profile cannot be deleted.",
+    "deleteConfirmMessage": "Just checking: are you sure you want to permanently delete the profile \"{{name}}\"? This can't be undone.",
+    "cannotDeleteDefault": "Heads up! The 'Default' profile is special and cannot be deleted.",
     "deleteButtonTooltip": "Delete profile",
     "exportButtonTooltip": "Export profile",
     "exportDialogTitle": "Save Profile As...",
     "importDialogTitle": "Select Profile to Import",
-    "exportSuccessMessage": "Profile successfully exported to \"{{fileName}}\".",
-    "importSuccessMessage": "Profile \"{{name}}\" successfully imported.",
+    "exportSuccessMessage": "Success! Your profile has been exported to \"{{fileName}}\".",
+    "importSuccessMessage": "All done! Profile \"{{name}}\" has been successfully imported.",
     "errors": {
-      "emptyName": "Profile name cannot be empty.",
-      "creationFailed": "Profile creation failed.",
-      "deletionFailed": "Profile deletion failed.",
-      "renameFailed": "Profile rename failed.",
-      "emptyNameOnRename": "New profile name cannot be empty.",
-      "autoSaveToggleFailed": "Failed to change auto-save setting.",
-      "exportFailedGeneral": "Profile export failed.",
-      "exportWriteFailed": "Failed to write profile to file: {{error}}",
-      "exportFailed": "Profile export failed: {{error}}",
-      "importReadFailed": "Failed to read profile file: {{error}}",
-      "importParseFailed": "Failed to parse profile JSON: {{error}}",
-      "importServiceFailed": "Profile import failed: {{error}}",
-      "importFailedGeneral": "Profile import failed: {{error}}",
-      "loadFailed": "Error loading profile: {{error}}"
+      "emptyName": "Please enter a name for your profile. It can't be blank!",
+      "creationFailed": "Sorry, we couldn't create your new profile. Please try again.",
+      "deletionFailed": "Hmm, we couldn't delete the profile. Please try again.",
+      "renameFailed": "Oops! We couldn't rename the profile. Please give it another try.",
+      "emptyNameOnRename": "Looks like the new profile name is empty. Please enter a name.",
+      "autoSaveToggleFailed": "We couldn't update the auto-save setting. Please try again.",
+      "exportFailedGeneral": "Sorry, we couldn't export your profile. Please try again.",
+      "exportWriteFailed": "We encountered an issue saving your profile to a file. Error: {{error}}. Please check permissions or try a different location.",
+      "exportFailed": "The profile export didn't complete successfully. Error: {{error}}. Please try again.",
+      "importReadFailed": "We couldn't read the profile file. Error: {{error}}. Please ensure the file is accessible and not corrupted.",
+      "importParseFailed": "The profile file seems to be in an incorrect format. We couldn't understand it. Error: {{error}}.",
+      "importServiceFailed": "Something went wrong during the profile import process. Error: {{error}}. Please try again.",
+      "importFailedGeneral": "We couldn't import your profile. Error: {{error}}. Please check the file and try again.",
+      "loadFailed": "Oops! We had trouble loading your profile. Error: {{error}}. Please try selecting it again."
     }
   },
   "common": {

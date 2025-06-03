@@ -458,10 +458,15 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   // --- DND KIT DRAG HANDLERS ---
   const handleDragStart = (event: { active: { id: UniqueIdentifier } }) => {
     setActiveId(event.active.id);
+    // Aggiungi classe CSS per migliorare il feedback visivo durante il drag
+    document.body.style.cursor = 'grabbing';
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveId(null);
+    // Ripristina il cursore
+    document.body.style.cursor = '';
+    
     const { active, over } = event;
 
     if (!over) {
@@ -469,6 +474,14 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         '[DND] Drag ended but no "over" target. Active ID was:',
         active.id
       );
+      // Aggiungi un piccolo shake effect per indicare drop non valido
+      const draggedElement = document.querySelector(`[data-id="${active.id}"]`);
+      if (draggedElement) {
+        draggedElement.classList.add('animate-pulse');
+        setTimeout(() => {
+          draggedElement.classList.remove('animate-pulse');
+        }, 300);
+      }
       return;
     }
 
@@ -588,6 +601,29 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         `[DND Logic] CRITICAL: Unhandled sourceColumnType: ${sourceColumnType}. Active: ${activeModId}`
       );
     }
+
+    // Aggiungi animazione di successo dopo il drop
+    setTimeout(() => {
+      const targetElement = document.querySelector(`[data-id="${activeModId}"]`);
+      if (targetElement) {
+        targetElement.classList.add('mod-card-drop-animation');
+        setTimeout(() => {
+          targetElement.classList.remove('mod-card-drop-animation');
+        }, 400);
+      }
+    }, 100);
+  };
+
+  // Funzione helper per migliorare il DragOverlay
+  const getDragOverlayMod = () => {
+    const mod = [...enabledMods, ...disabledMods].find(
+      (mod) => mod.id === activeId
+    );
+    return mod || { id: 'error', name: 'Error', path: '' };
+  };
+
+  const getDragOverlayType = () => {
+    return enabledMods.some((mod) => mod.id === activeId) ? 'enabled' : 'disabled';
   };
 
   // Callback per ModDropzone: ora riceve StagedModInfo[] dal backend via ModDropzone
@@ -936,24 +972,22 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
             </div>
           </div>
         </div>
-        <DragOverlay>
+        <DragOverlay
+          dropAnimation={{
+            duration: 400,
+            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
+        >
           {activeId ? (
-            <ModCard
-              mod={
-                [...enabledMods, ...disabledMods].find(
-                  (mod) => mod.id === activeId
-                ) || { id: 'error', name: 'Error', path: '' }
-              }
-              type={
-                enabledMods.some((mod) => mod.id === activeId)
-                  ? 'enabled'
-                  : 'disabled'
-              }
-              // Queste prop non sono usate da ModCard in modalità overlay, ma sono richieste
-              onToggleEnable={() => {}}
-              onRename={() => {}}
-              onRemove={() => {}}
-            />
+            <div className="transform rotate-3 scale-105 shadow-2xl shadow-sky-500/30">
+              <ModCard
+                mod={getDragOverlayMod()}
+                type={getDragOverlayType()}
+                onToggleEnable={() => {}}
+                onRename={() => {}}
+                onRemove={() => {}}
+              />
+            </div>
           ) : null}
         </DragOverlay>
         {/* Dialog per rinominare il mod */}

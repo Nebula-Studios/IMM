@@ -70,15 +70,36 @@ const ModCard: React.FC<ModCardProps> = ({
     setNodeRef,
     transform,
     transition,
-    isDragging, // Per feedback visivo
-  } = useSortable({ id: mod.id }); // Rimosso: disabled: type === 'disabled'. Tutti i mod sono ora trascinabili.
-  // Il riordino è controllato da SortableContext e handleDragEnd.
+    isDragging,
+    isOver,
+    active,
+  } = useSortable({ id: mod.id });
 
+  // Stile dinamico migliorato per il drag and drop
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1, // Feedback visivo durante il drag
-    zIndex: isDragging ? 100 : 'auto', // Assicura che l'elemento trascinato sia sopra gli altri
+    transition: isDragging ? 'none' : transition,
+    opacity: isDragging ? 0.8 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  // Classi CSS dinamiche per animazioni migliorate
+  const getDynamicClasses = () => {
+    let classes = 'mod-card group relative flex items-center justify-between p-4 rounded-xl cursor-grab backdrop-blur-sm';
+    
+    if (isDragging) {
+      classes += ' mod-card-dragging shadow-2xl shadow-sky-500/50 border-2 border-sky-400 bg-gradient-to-r from-sky-900/60 to-blue-900/60';
+    } else if (type === 'enabled') {
+      classes += ' mod-card-enabled border border-green-600/30 bg-gradient-to-r from-green-900/20 to-emerald-900/20 hover:from-green-800/30 hover:to-emerald-800/30 hover:border-green-500/50 shadow-lg hover:shadow-green-500/30 hover:shadow-2xl transition-all duration-300 ease-out';
+    } else {
+      classes += ' border border-neutral-600/50 bg-gradient-to-r from-neutral-800/80 to-slate-800/80 hover:from-neutral-700/90 hover:to-slate-700/90 hover:border-neutral-500/70 shadow-md hover:shadow-neutral-400/20 hover:shadow-xl transition-all duration-300 ease-out';
+    }
+    
+    if (isOver && !isDragging) {
+      classes += ' dropzone-hover';
+    }
+    
+    return classes;
   };
 
   const toggleLabel =
@@ -91,32 +112,71 @@ const ModCard: React.FC<ModCardProps> = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger disabled={isDragging}>
-        {' '}
-        {/* Disabilita il context menu durante il drag */}
         <div
           ref={setNodeRef}
           style={style}
-          // onClick={() => onSelect && onSelect(mod.id)} // Futuro
-          className={`flex items-center justify-between p-3 mb-2 border rounded-md transition-colors
-                    ${isDragging ? 'shadow-lg border-sky-500 bg-sky-900/30' : 'border-neutral-700 bg-neutral-800 hover:bg-neutral-750'}
-                    cursor-grab`} // Ora tutti i mod hanno il cursore grab
-          // Non servono più draggable e onDragStart nativi
+          className={getDynamicClasses()}
+          data-id={mod.id}
         >
-          <div className="flex items-center flex-grow truncate">
-            {/* L'handle di trascinamento (GripVertical) ora è sempre visibile se si vuole, o condizionato diversamente */}
+          {/* Indicatore di stato a sinistra con animazione migliorata */}
+          <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 rounded-r-full transition-all duration-300
+                          ${type === 'enabled'
+                            ? 'bg-gradient-to-b from-green-400 to-emerald-500 shadow-lg shadow-green-400/50'
+                            : 'bg-gradient-to-b from-neutral-500 to-slate-600'}
+                          ${isDragging ? 'w-2 h-10 shadow-2xl' : ''}`}
+          />
+          
+          <div className="flex items-center flex-grow truncate ml-2">
+            {/* Handle di trascinamento migliorato con feedback tattile */}
             <span
               {...attributes}
               {...listeners}
-              className="p-1 mr-2 cursor-grab"
+              className={`drag-handle flex items-center justify-center p-2 mr-3 rounded-lg
+                         transition-all duration-300 hover:bg-white/15 active:bg-white/20
+                         ${isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'}
+                         hover:shadow-lg hover:shadow-white/10`}
               title={t('modCard.dragHandleTooltip')}
             >
-              <GripVertical className="h-5 w-5 text-neutral-400" />
+              <GripVertical className={`h-5 w-5 transition-all duration-300
+                                     ${isDragging ? 'scale-125 rotate-90' : ''}
+                                     ${type === 'enabled'
+                                       ? 'text-green-400 group-hover:text-green-300'
+                                       : 'text-neutral-400 group-hover:text-neutral-300'}`} />
             </span>
-            <p className="text-sm text-slate-100 truncate" title={mod.name}>
-              {mod.name}
-            </p>
+            
+            {/* Nome del mod con tipografia migliorata */}
+            <div className="flex flex-col flex-grow truncate">
+              <p className={`font-medium text-base leading-tight truncate transition-all duration-300
+                           ${isDragging ? 'text-white font-semibold' : ''}
+                           ${type === 'enabled'
+                             ? 'text-slate-50 group-hover:text-white'
+                             : 'text-slate-100 group-hover:text-slate-50'}`}
+                 title={mod.name}>
+                {mod.name}
+              </p>
+              {/* Badge tipo mod con animazione */}
+              <span className={`status-badge inline-flex items-center px-2 py-0.5 mt-1 text-xs font-medium rounded-full w-fit
+                              bg-blue-500/20 text-blue-300 border border-blue-500/30
+                              ${isDragging ? 'bg-blue-400/30 text-blue-200 border-blue-400/50 scale-105' : ''}`}>
+                .pak
+              </span>
+            </div>
           </div>
-          {/* I pulsanti di riordino sono stati rimossi */}
+          
+          {/* Icona di stato a destra con feedback animato */}
+          <div className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300
+                          ${isDragging ? 'scale-110 shadow-lg' : ''}
+                          ${type === 'enabled'
+                            ? 'bg-green-500/20 group-hover:bg-green-500/30'
+                            : 'bg-neutral-500/20 group-hover:bg-neutral-500/30'}`}>
+            {type === 'enabled' ? (
+              <PlayCircle className={`h-5 w-5 text-green-400 transition-all duration-300
+                                   ${isDragging ? 'text-green-300 scale-110' : ''}`} />
+            ) : (
+              <PauseCircle className={`h-5 w-5 text-neutral-400 transition-all duration-300
+                                    ${isDragging ? 'text-neutral-300 scale-110' : ''}`} />
+            )}
+          </div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">

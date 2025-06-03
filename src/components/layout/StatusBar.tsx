@@ -58,7 +58,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   return (
     <footer
       className={cn(
-        'bg-neutral-900/80 text-slate-400 flex items-center justify-between px-6 py-2 h-10 border-t border-l border-r border-neutral-700 rounded-t-xl mx-4 text-xs shadow-xl',
+        'bg-gradient-to-r from-neutral-900/90 to-neutral-800/90 backdrop-blur-sm text-slate-400 flex items-center justify-between px-6 py-2 h-10 border-t border-l border-r border-neutral-700/80 rounded-t-xl mx-4 text-xs shadow-2xl hover:shadow-neutral-900/50 transition-all duration-300',
         className
       )}
     >

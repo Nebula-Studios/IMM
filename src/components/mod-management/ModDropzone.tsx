@@ -197,8 +197,11 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
   return (
     <div
       {...rootProps}
-      className={`p-6 border-2 border-dashed rounded-md text-center cursor-pointer
-                  ${isDragActive ? 'border-green-500 bg-green-500/10' : 'border-neutral-500 hover:border-neutral-400'}`}
+      className={`p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 ease-out
+                  backdrop-blur-sm transform
+                  ${isDragActive
+                    ? 'border-green-500 bg-green-500/20 scale-105 shadow-lg shadow-green-500/30 dropzone-active'
+                    : 'border-neutral-500 hover:border-neutral-400 hover:bg-neutral-800/20 hover:scale-102'}`}
       style={{
         minHeight: '150px',
         display: 'flex',
@@ -207,13 +210,31 @@ const ModDropzone: React.FC<ModDropzoneProps> = ({
       }}
     >
       <input {...getInputProps()} />
-      {isDragActive ? (
-        <p className="text-green-500">{t('modDropzone.dropActive')}</p>
-      ) : (
-        <p className="text-neutral-400">
-          {t('modDropzone.dropInactive')}
-        </p>
-      )}
+      <div className="text-center space-y-2">
+        {isDragActive ? (
+          <>
+            <div className="text-2xl animate-bounce">📦</div>
+            <p className="text-green-400 font-medium animate-pulse">
+              {t('modDropzone.dropActive')}
+            </p>
+            <p className="text-green-300 text-sm">
+              Rilascia i file .pak, .zip, .rar o .7z qui
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="text-2xl opacity-50 transition-opacity duration-300 hover:opacity-75">
+              📁
+            </div>
+            <p className="text-neutral-400 transition-colors duration-300 hover:text-neutral-300">
+              {t('modDropzone.dropInactive')}
+            </p>
+            <p className="text-neutral-500 text-sm">
+              Supporta file .pak, .zip, .rar e .7z
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 };

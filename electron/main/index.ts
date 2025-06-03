@@ -1271,11 +1271,13 @@ ipcMain.handle(
 
       return {
         success: true,
-        newPath: gameModsPath, // La directory ~mods generale
+        newPath: gameModsPath, // La directory ~mods generale (per riferimento)
         numericPrefix: numericPrefix, // Il prefisso usato
         copiedFilePaths: copiedFilePaths,
         originalStagingId: modStagingPakPath, // ID di staging originale
         isNonVirtual: true, // Flag per indicare che è un mod non virtuale
+        // NOTA: per i mod non virtuali, activePath dovrebbe essere null o non impostato
+        // perché non hanno una singola directory, ma file sparsi nella root di ~mods
       };
     } catch (error: any) {
       log.error(`[Enable Mod] Error enabling mod ${modName}:`, error);
@@ -1317,6 +1319,151 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+/**
+ * Rinumera i prefissi delle mod attive rimanenti dopo la disattivazione di una mod.
+ * Scala i prefissi numerici delle mod che avevano un prefisso maggiore di quello della mod disattivata.
+ * Gestisce sia file singoli (mod non virtuali) che directory (mod virtuali).
+ *
+ * @param gameModsDir - Percorso della directory ~mods del gioco
+ * @param disabledModPrefix - Prefisso numerico della mod appena disattivata (es. "002")
+ * @param wasNonVirtual - True se la mod disattivata era non virtuale (file singoli)
+ */
+async function renumberRemainingActiveMods(
+  gameModsDir: string,
+  disabledModPrefix: string | null,
+  wasNonVirtual: boolean
+): Promise<void> {
+  if (!disabledModPrefix) {
+    log.info('[renumberRemainingActiveMods] Nessun prefisso numerico fornito, rinumerazione saltata.');
+    return;
+  }
+
+  if (!fs.existsSync(gameModsDir)) {
+    log.warn(`[renumberRemainingActiveMods] Directory ~mods non trovata: ${gameModsDir}`);
+    return;
+  }
+
+  const disabledPrefixNumber = parseInt(disabledModPrefix, 10);
+  if (isNaN(disabledPrefixNumber)) {
+    log.error(`[renumberRemainingActiveMods] Prefisso numerico non valido: ${disabledModPrefix}`);
+    return;
+  }
+
+  log.info(
+    `[renumberRemainingActiveMods] Scansionando ${gameModsDir} per rinumerare elementi con prefisso > ${disabledPrefixNumber}`
+  );
+
+  try {
+    const allItems = await fsPromises.readdir(gameModsDir, { withFileTypes: true });
+    
+    // Raccogli tutte le mod (file e cartelle) che necessitano di rinominazione
+    // ESCLUDENDO file/cartelle temporanei che potrebbero essere in uso da altre operazioni
+    const itemsToRename: {
+      currentPath: string;
+      currentName: string;
+      currentPrefix: number;
+      newPrefix: number;
+      newName: string;
+      newPath: string;
+      isDirectory: boolean;
+    }[] = [];
+
+    for (const item of allItems) {
+      const itemName = item.name;
+      const itemPath = nodePath.join(gameModsDir, itemName);
+      
+      // SKIP file/cartelle temporanei per evitare conflitti con operazioni concorrenti
+      if (itemName.includes('_imm_temp_rename') || itemName.includes('_temp_') || itemName.startsWith('~')) {
+        log.info(`[renumberRemainingActiveMods] Saltando elemento temporaneo: ${itemName}`);
+        continue;
+      }
+      
+      // Cerca pattern NNN_ sia per file che cartelle
+      const match = itemName.match(/^(\d{3})_(.+)$/);
+      if (match && match[1] && match[2]) {
+        const currentPrefix = parseInt(match[1], 10);
+        const baseName = match[2];
+        
+        // Solo elementi con prefisso maggiore del mod disattivato devono essere rinominati
+        if (currentPrefix > disabledPrefixNumber) {
+          const newPrefix = currentPrefix - 1;
+          const newPrefixString = String(newPrefix).padStart(3, '0');
+          const newName = `${newPrefixString}_${baseName}`;
+          const newPath = nodePath.join(gameModsDir, newName);
+          
+          itemsToRename.push({
+            currentPath: itemPath,
+            currentName: itemName,
+            currentPrefix,
+            newPrefix,
+            newName,
+            newPath,
+            isDirectory: item.isDirectory()
+          });
+        }
+      }
+    }
+
+    if (itemsToRename.length === 0) {
+      log.info('[renumberRemainingActiveMods] Nessun elemento da rinominare trovato.');
+      return;
+    }
+
+    // Ordina per prefisso crescente per evitare conflitti di nomi durante la rinominazione
+    itemsToRename.sort((a, b) => a.currentPrefix - b.currentPrefix);
+
+    log.info(
+      `[renumberRemainingActiveMods] Trovati ${itemsToRename.length} elementi da rinominare: ${itemsToRename.map(item => `${item.currentName} -> ${item.newName}`).join(', ')}`
+    );
+
+    // Esegui le rinominazioni in sequenza per evitare conflitti
+    for (const item of itemsToRename) {
+      try {
+        // Verifica che l'elemento di origine esista ancora e non sia diventato temporaneo
+        if (!fs.existsSync(item.currentPath)) {
+          log.warn(`[renumberRemainingActiveMods] Elemento ${item.currentPath} non trovato, saltando rinomina.`);
+          continue;
+        }
+
+        // Doppio controllo: verifica che il nome corrente non sia diventato temporaneo
+        const currentName = nodePath.basename(item.currentPath);
+        if (currentName.includes('_imm_temp_rename') || currentName.includes('_temp_') || currentName.startsWith('~')) {
+          log.warn(`[renumberRemainingActiveMods] Elemento ${item.currentPath} è diventato temporaneo, saltando rinomina.`);
+          continue;
+        }
+
+        // Verifica che la destinazione non esista già
+        if (fs.existsSync(item.newPath)) {
+          log.error(
+            `[renumberRemainingActiveMods] Destinazione ${item.newPath} già esistente, saltando rinomina di ${item.currentName}.`
+          );
+          continue;
+        }
+
+        // Esegui la rinominazione
+        await fsPromises.rename(item.currentPath, item.newPath);
+        
+        const itemType = item.isDirectory ? 'directory' : 'file';
+        log.info(
+          `[renumberRemainingActiveMods] Rinominato ${itemType} ${item.currentName} -> ${item.newName} (prefisso ${item.currentPrefix} -> ${item.newPrefix})`
+        );
+        
+      } catch (renameError: any) {
+        log.error(
+          `[renumberRemainingActiveMods] Errore rinominando ${item.currentName}: ${renameError.message}`
+        );
+        // Continua con gli altri elementi invece di interrompere tutto
+      }
+    }
+
+    log.info('[renumberRemainingActiveMods] Rinumerazione completata.');
+    
+  } catch (error: any) {
+    log.error(`[renumberRemainingActiveMods] Errore durante la scansione di ${gameModsDir}: ${error.message}`);
+    throw error;
+  }
+}
+
 ipcMain.handle(
   'disable-mod',
   async (
@@ -1341,13 +1488,18 @@ ipcMain.handle(
 
     // Determina isNonVirtual e actualNumericPrefix usando i dati dallo store se disponibili, altrimenti dall'input
     // Diamo priorità allo store perché riflette lo stato "attivo" più recente.
-    const isNonVirtualEffective =
-      storedModEntry?.isNonVirtual ?? modToDisable.isNonVirtual ?? false;
-    let actualNumericPrefix =
-      storedModEntry?.numericPrefix ?? modToDisable.numericPrefix ?? null;
+    const isNonVirtualFromStore = storedModEntry?.isNonVirtual ?? modToDisable.isNonVirtual ?? false;
+    let actualNumericPrefix = storedModEntry?.numericPrefix ?? modToDisable.numericPrefix ?? null;
+
+    // CONTROLLO AGGIUNTIVO: Se activePath punta alla directory ~mods stessa, è probabilmente un mod non virtuale
+    const modActivePath = storedModEntry?.activePath || modToDisable.activePath;
+    const isActivePathGameModsRoot = modActivePath === gameModsDir;
+    
+    // Determina il tipo effettivo: è non virtuale se esplicitamente marcato O se activePath è la root di ~mods
+    const isNonVirtualEffective = isNonVirtualFromStore || isActivePathGameModsRoot;
 
     log.info(
-      `[Main DISABLE_MOD] Mod "${modToDisable.name}" (ID: ${modToDisable.id}): isNonVirtual (effective)=${isNonVirtualEffective}, numericPrefix (effective)=${actualNumericPrefix}`
+      `[Main DISABLE_MOD] Mod "${modToDisable.name}" (ID: ${modToDisable.id}): isNonVirtual (store/input)=${isNonVirtualFromStore}, activePath="${modActivePath}", isActivePathGameModsRoot=${isActivePathGameModsRoot}, isNonVirtual (effective)=${isNonVirtualEffective}, numericPrefix (effective)=${actualNumericPrefix}`
     );
 
     if (isNonVirtualEffective && !actualNumericPrefix) {
@@ -1361,13 +1513,89 @@ ipcMain.handle(
     }
 
     try {
-      if (!isNonVirtualEffective) {
+      if (isNonVirtualEffective) {
+        // Mod non virtuale (file singoli NNN_*.pak, NNN_*.ucas, NNN_*.utoc)
+        const modNameBase = storedModEntry?.name || modToDisable.name;
+        const extensions = ['.pak', '.ucas', '.utoc'];
+        let allFilesMovedOrAbsent = true;
+        let filesAttemptedToMove = 0;
+
+        // Ottieni la directory di staging per spostare i file
+        const stagingPath = getCurrentStagingPath();
+        const modStagingDir = nodePath.join(stagingPath, sanitizeDirectoryName(modNameBase));
+
+        // Assicurati che la directory di staging del mod esista
+        if (!fs.existsSync(modStagingDir)) {
+          await fsPromises.mkdir(modStagingDir, { recursive: true });
+          log.info(`[Main DISABLE_MOD] Creata directory di staging per mod non virtuale: ${modStagingDir}`);
+        }
+
+        // Ottieni la lista di tutti i file nella directory ~mods
+        const modsDirectoryFiles = await fsPromises.readdir(gameModsDir);
+
+        // Filtra SOLO i file che corrispondono ESATTAMENTE al pattern del mod specifico
+        const modFiles = modsDirectoryFiles.filter(fileName => {
+          // Se abbiamo un prefisso numerico specifico, usalo per il match ESATTO
+          if (actualNumericPrefix) {
+            // Controlla che il file sia esattamente nel formato: {prefisso}_{nomeModBase}.{estensione}
+            for (const ext of extensions) {
+              const expectedFileName = `${actualNumericPrefix}_${modNameBase}${ext}`;
+              if (fileName === expectedFileName) {
+                return true;
+              }
+            }
+            return false;
+          }
+          // Se non abbiamo un prefisso specifico, cerca qualsiasi prefisso numerico ma con nome ESATTO
+          const match = fileName.match(/^(\d{3})_(.+?)\.(.+)$/);
+          if (match) {
+            const [, prefix, nameFromFile, extensionFromFile] = match;
+            return nameFromFile === modNameBase && extensions.includes(`.${extensionFromFile}`);
+          }
+          return false;
+        });
+
+        log.info(
+          `[Main DISABLE_MOD] Mod non virtuale "${modNameBase}": trovati ${modFiles.length} file da spostare in staging: [${modFiles.join(', ')}]`
+        );
+
+        // Sposta ogni file trovato nella directory di staging
+        for (const fileName of modFiles) {
+          const filePathInGame = nodePath.join(gameModsDir, fileName);
+          // Rimuovi il prefisso numerico dal nome del file per lo staging
+          const originalFileName = fileName.replace(/^(\d{3})_/, '');
+          const destFilePath = nodePath.join(modStagingDir, originalFileName);
+          
+          try {
+            filesAttemptedToMove++;
+            await fsPromises.rename(filePathInGame, destFilePath);
+            log.info(
+              `[Main DISABLE_MOD] File non virtuale ${filePathInGame} spostato con successo in staging: ${destFilePath}`
+            );
+          } catch (fileError: any) {
+            log.error(
+              `[Main DISABLE_MOD] Errore durante lo spostamento del file ${filePathInGame}: ${fileError.message}`
+            );
+            allFilesMovedOrAbsent = false;
+          }
+        }
+
+        if (filesAttemptedToMove === 0) {
+          log.warn(
+            `[Main DISABLE_MOD] Nessun file trovato per il mod non virtuale ${modNameBase} con prefisso ${actualNumericPrefix}. Il mod potrebbe essere già stato rimosso o il nome/prefisso non corrisponde.`
+          );
+        } else if (!allFilesMovedOrAbsent) {
+          log.warn(
+            `[Main DISABLE_MOD] Non tutti i file per il mod non virtuale ${modNameBase} sono stati spostati con successo.`
+          );
+        }
+      } else {
         // Mod virtuale (cartella NNN_NomeMod)
-        const modDirInGame =
-          storedModEntry?.activePath || modToDisable.activePath;
+        const modDirInGame = storedModEntry?.activePath || modToDisable.activePath;
+        
         if (!modDirInGame) {
           log.error(
-            `[Main DISABLE_MOD] activePath non definito per il mod virtuale ${modToDisable.name} (ID: ${modToDisable.id}). Impossibile determinare la cartella da eliminare.`
+            `[Main DISABLE_MOD] activePath non definito per il mod virtuale ${modToDisable.name} (ID: ${modToDisable.id}). Impossibile determinare la cartella da spostare.`
           );
           return {
             success: false,
@@ -1375,59 +1603,58 @@ ipcMain.handle(
           };
         }
 
+        // CONTROLLO DI SICUREZZA CRITICO: Non spostare mai la directory ~mods stessa
+        if (modDirInGame === gameModsDir) {
+          log.error(
+            `[Main DISABLE_MOD] ERRORE CRITICO: Il mod virtuale "${modToDisable.name}" ha activePath che punta alla directory ~mods root (${gameModsDir}). Questo indica un errore nei dati. Rifiuto di spostare l'intera directory ~mods.`
+          );
+          return {
+            success: false,
+            error: `Cannot move entire ~mods directory. Mod data appears corrupted. Please check mod configuration.`,
+          };
+        }
+
+        // Verifica che la directory da spostare sia effettivamente una sottocartella di ~mods
+        if (!modDirInGame.startsWith(gameModsDir + nodePath.sep)) {
+          log.error(
+            `[Main DISABLE_MOD] ERRORE DI SICUREZZA: Il mod virtuale "${modToDisable.name}" ha activePath (${modDirInGame}) che non è una sottocartella di ~mods (${gameModsDir}). Operazione bloccata.`
+          );
+          return {
+            success: false,
+            error: `Mod directory path is outside the expected game mods directory. Operation blocked for safety.`,
+          };
+        }
+
+        // Ottieni la directory di staging e prepara la destinazione
+        const stagingPath = getCurrentStagingPath();
+        const modNameBase = storedModEntry?.name || modToDisable.name;
+        const modStagingDir = nodePath.join(stagingPath, sanitizeDirectoryName(modNameBase));
+
         log.info(
-          `[Main DISABLE_MOD] Tentativo di eliminare la directory del mod virtuale: ${modDirInGame}`
+          `[Main DISABLE_MOD] Tentativo di spostare la directory del mod virtuale: ${modDirInGame} -> ${modStagingDir}`
         );
+        
         if (await directoryExists(modDirInGame)) {
-          await fsPromises.rm(modDirInGame, { recursive: true, force: true });
+          // Se la directory di staging esiste già, rimuovila per evitare conflitti
+          if (fs.existsSync(modStagingDir)) {
+            log.warn(`[Main DISABLE_MOD] Directory di staging ${modStagingDir} già esistente, la rimuovo prima dello spostamento.`);
+            await fsPromises.rm(modStagingDir, { recursive: true, force: true });
+          }
+          
+          // Assicurati che la directory padre di staging esista
+          if (!fs.existsSync(stagingPath)) {
+            await fsPromises.mkdir(stagingPath, { recursive: true });
+            log.info(`[Main DISABLE_MOD] Creata directory di staging: ${stagingPath}`);
+          }
+
+          // Sposta l'intera directory del mod dalla directory di gioco allo staging
+          await fsPromises.rename(modDirInGame, modStagingDir);
           log.info(
-            `[Main DISABLE_MOD] Directory del mod virtuale ${modDirInGame} eliminata con successo.`
+            `[Main DISABLE_MOD] Directory del mod virtuale ${modDirInGame} spostata con successo in staging: ${modStagingDir}`
           );
         } else {
           log.warn(
             `[Main DISABLE_MOD] La directory del mod virtuale ${modDirInGame} non esiste. Nessuna azione intrapresa.`
-          );
-        }
-      } else {
-        // Mod non virtuale (file singoli NNN_*.pak, NNN_*.ucas, NNN_*.utoc)
-        const modNameBase = storedModEntry?.name || modToDisable.name;
-        const extensions = ['.pak', '.ucas', '.utoc'];
-        let allFilesRemovedOrAbsent = true;
-        let filesAttemptedToDelete = 0;
-
-        for (const ext of extensions) {
-          const fileNameWithPrefix = `${actualNumericPrefix}_${modNameBase}${ext}`;
-          const filePathInGame = nodePath.join(gameModsDir, fileNameWithPrefix);
-          log.info(
-            `[Main DISABLE_MOD] Tentativo di eliminare il file non virtuale: ${filePathInGame}`
-          );
-
-          try {
-            if (await fileExists(filePathInGame)) {
-              filesAttemptedToDelete++;
-              await fsPromises.unlink(filePathInGame);
-              log.info(
-                `[Main DISABLE_MOD] File non virtuale ${filePathInGame} eliminato con successo.`
-              );
-            } else {
-              log.info(
-                `[Main DISABLE_MOD] Il file non virtuale ${filePathInGame} non esiste. Nessuna azione intrapresa.`
-              );
-            }
-          } catch (fileError: any) {
-            log.error(
-              `[Main DISABLE_MOD] Errore durante l'eliminazione del file ${filePathInGame}: ${fileError.message}`
-            );
-            allFilesRemovedOrAbsent = false;
-          }
-        }
-        if (filesAttemptedToDelete === 0) {
-          log.warn(
-            `[Main DISABLE_MOD] Nessun file trovato o tentato di eliminare per il mod non virtuale ${modNameBase} con prefisso ${actualNumericPrefix}. Il mod potrebbe essere già stato rimosso o il nome/prefisso non corrisponde.`
-          );
-        } else if (!allFilesRemovedOrAbsent) {
-          log.warn(
-            `[Main DISABLE_MOD] Non tutti i file per il mod non virtuale ${modNameBase} sono stati rimossi con successo.`
           );
         }
       }
@@ -1472,6 +1699,20 @@ ipcMain.handle(
         log.info(
           `[Main DISABLE_MOD] Mod ${modNameForLog} (ID: ${modIdToProcess}) già presente in savedDisabledMods. Nessuna modifica a savedDisabledMods.`
         );
+      }
+
+      // NUOVA LOGICA: Rinumerazione dei prefissi delle mod attive rimanenti
+      log.info(
+        `[Main DISABLE_MOD] Iniziando rinumerazione dei prefissi delle mod rimanenti dopo disattivazione di "${modNameForLog}".`
+      );
+      
+      try {
+        await renumberRemainingActiveMods(gameModsDir, actualNumericPrefix, isNonVirtualEffective);
+      } catch (renumberError: any) {
+        log.error(
+          `[Main DISABLE_MOD] Errore durante la rinumerazione dei prefissi: ${renumberError.message}. La mod è stata disattivata ma i prefissi potrebbero non essere corretti.`
+        );
+        // Non consideriamo questo un errore fatale per la disattivazione
       }
 
       log.info(
@@ -2410,6 +2651,13 @@ ipcMain.handle(
       for (let i = 0; i < orderedMods.length; i++) {
         const mod = orderedMods[i];
         const currentModFullPath = mod.activePath!; // Assicurato dal controllo precedente
+        
+        // SKIP la directory radice ~mods - non deve essere rinominata
+        if (currentModFullPath.endsWith('~mods')) {
+          log.info(`[Main - update-mod-order] Skipping root ~mods directory: ${currentModFullPath}`);
+          continue;
+        }
+        
         const currentModFolderName = nodePath.basename(currentModFullPath);
 
         const baseNameMatch = currentModFolderName.match(/^\d{3}_(.*)$/);
@@ -2480,14 +2728,29 @@ ipcMain.handle(
             `[Main - update-mod-order] Attempting to rename ${op.oldPath} to temporary ${op.tempPath}`
           );
           try {
+            // Verifica che il percorso di origine esista prima di tentare la rinomina
+            if (!fs.existsSync(op.oldPath)) {
+              log.error(
+                `[Main - update-mod-order] CRITICAL: Source path ${op.oldPath} does not exist before rename to temp.`
+              );
+              throw new Error(`Source path does not exist: ${op.oldPath}`);
+            }
+            
             await fsPromises.rename(op.oldPath, op.tempPath);
             const tempExists = fs.existsSync(op.tempPath);
+            const sourceStillExists = fs.existsSync(op.oldPath);
             log.info(
-              `[Main - update-mod-order] SUCCESSFULLY renamed ${op.oldPath} to temporary ${op.tempPath}. Verification - tempPath exists: ${tempExists}`
+              `[Main - update-mod-order] SUCCESSFULLY renamed ${op.oldPath} to temporary ${op.tempPath}. Verification - tempPath exists: ${tempExists}, sourceStillExists: ${sourceStillExists}`
             );
             if (!tempExists) {
               log.error(
                 `[Main - update-mod-order] CRITICAL: Rename to temp for ${op.oldPath} reported success, but ${op.tempPath} does NOT exist.`
+              );
+              throw new Error(`Temporary path was not created: ${op.tempPath}`);
+            }
+            if (sourceStillExists) {
+              log.warn(
+                `[Main - update-mod-order] WARNING: Source path ${op.oldPath} still exists after rename to temp. This might indicate a copy instead of move.`
               );
             }
             successfullyRenamedToTemp.push(op.tempPath);
@@ -2526,6 +2789,22 @@ ipcMain.handle(
             `[Main - update-mod-order] Attempting to rename temporary ${op.tempPath} to final ${op.newPath}`
           );
           try {
+            // Verifica che il percorso temporaneo esista prima di tentare la rinomina finale
+            if (!fs.existsSync(op.tempPath)) {
+              log.error(
+                `[Main - update-mod-order] CRITICAL: Temporary path ${op.tempPath} does not exist before final rename. This indicates the temp file was lost or deleted.`
+              );
+              // Tenta di elencare il contenuto della directory padre per diagnostica
+              try {
+                const parentDir = nodePath.dirname(op.tempPath);
+                const parentContents = fs.readdirSync(parentDir);
+                log.info(`[Main - update-mod-order] Parent directory ${parentDir} contents: ${JSON.stringify(parentContents)}`);
+              } catch (listError: any) {
+                log.error(`[Main - update-mod-order] Failed to list parent directory contents: ${listError.message}`);
+              }
+              throw new Error(`Temporary path does not exist: ${op.tempPath}`);
+            }
+            
             await fsPromises.rename(op.tempPath, op.newPath);
             const finalExists = fs.existsSync(op.newPath);
             const tempStillExists = fs.existsSync(op.tempPath);

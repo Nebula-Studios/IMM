@@ -135,7 +135,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
   return (
     <>
-      <div className="h-14 px-4 mx-4 mb-1 flex items-center justify-between bg-neutral-900/80 text-slate-100 border-b border-l border-r border-neutral-700 rounded-b-xl shadow-xl print:hidden">
+      <div className="h-14 px-4 mx-4 mb-1 flex items-center justify-between bg-gradient-to-r from-neutral-900/90 to-neutral-800/90 backdrop-blur-sm text-slate-100 border-b border-l border-r border-neutral-700/80 rounded-b-xl shadow-2xl hover:shadow-neutral-900/50 transition-all duration-300 print:hidden">
         <div className="flex items-center space-x-2">
           <img src={appIcon} alt="App Icon" className="h-6 w-6" />
           <h1 className="text-lg font-semibold tracking-tight">

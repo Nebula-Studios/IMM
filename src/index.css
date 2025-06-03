@@ -165,3 +165,276 @@ html {
   scrollbar-width: thin;
   scrollbar-color: #555 transparent; /* thumb track */
 }
+
+/* ModCard Custom Animations and Effects */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0px) scale(1);
+  }
+  100% {
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+@keyframes drop-bounce {
+  0% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes dropzone-highlight {
+  0%, 100% {
+    border-color: rgba(34, 197, 94, 0.5);
+    background-color: rgba(34, 197, 94, 0.05);
+  }
+  50% {
+    border-color: rgba(34, 197, 94, 0.8);
+    background-color: rgba(34, 197, 94, 0.1);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.mod-card-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.mod-card-enabled {
+  animation: pulse-border 3s ease-in-out infinite;
+}
+
+.mod-card-dragging {
+  animation: float-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  z-index: 1000;
+  cursor: grabbing;
+}
+
+.mod-card-drop-animation {
+  animation: drop-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.dropzone-active {
+  animation: dropzone-highlight 1.5s ease-in-out infinite;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dropzone-hover {
+  transform: scale(1.02);
+  filter: brightness(1.1);
+}
+
+/* Miglioramenti per i badge di stato */
+.status-badge {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.status-badge:hover {
+  transform: scale(1.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Effetti di hover migliorati */
+.mod-card:hover .drag-handle {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: scale(1.1);
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.mod-card:active {
+  filter: brightness(0.95);
+  transform: translateY(1px) scale(0.98);
+}
+
+.mod-card:hover {
+  transform: translateY(-2px);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Transizioni fluide per tutti gli elementi delle card */
+.mod-card * {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition-duration: 300ms;
+}
+
+/* Animazioni specifiche per elementi di drag and drop */
+.drag-handle {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.drag-handle:hover {
+  transform: scale(1.1);
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  transform: scale(1.05);
+}
+
+/* Miglioramenti per la fluidità durante il scroll */
+.mod-list-container {
+  scroll-behavior: smooth;
+}
+
+/* Effetti per le zone di rilascio */
+.drop-target-indicator {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.drop-target-indicator::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #22c55e, transparent);
+  border-radius: 2px;
+  opacity: 0;
+  transform: scaleX(0);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.drop-target-indicator.active::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* Classe utilitaria per hover scale */
+.hover\:scale-102:hover {
+  transform: scale(1.02);
+}
+
+/* Enhanced global transitions for UI consistency */
+button {
+  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+/* Enhanced input focus animations */
+input:focus,
+select:focus,
+textarea:focus {
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Card hover enhancements */
+.card-hover-effect {
+  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Subtle pulse animation for loading states */
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.subtle-pulse {
+  animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Gradient text animation */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(-45deg, #3b82f6, #10b981, #8b5cf6, #f59e0b);
+  background-size: 400% 400%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* Modern glassmorphism effects */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Enhanced scrollbar styling for better consistency */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(64, 64, 64, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #525252, #404040);
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #737373, #525252);
+}
