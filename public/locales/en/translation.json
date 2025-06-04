@@ -106,6 +106,37 @@
       "loadFailed": "Oops! We had trouble loading your profile. Error: {{error}}. Please try selecting it again."
     }
   },
+  "modEnabler": {
+    "installing": "Installing Mod Enabler...",
+    "downloading": "Downloading required files...",
+    "downloadProgress": "Download progress: {{percent}}%",
+    "extracting": "Extracting files...",
+    "verifying": "Verifying file integrity...",
+    "installSuccess": "Mod Enabler installed successfully!",
+    "installFailed": "Mod Enabler installation failed",
+    "downloadFailed": "Download failed: {{error}}",
+    "extractFailed": "Extraction failed: {{error}}",
+    "verificationFailed": "Integrity verification failed for {{file}}",
+    "networkError": "Network connection error. Please check your internet connection.",
+    "manifestError": "Error loading file manifest",
+    "cacheCleared": "Mod Enabler cache cleared successfully",
+    "retrying": "Retrying... ({{attempt}}/{{maxAttempts}})",
+    "timeout": "Timeout during download. Please try again later.",
+    "githubError": "Error accessing GitHub Releases",
+    "checksumMismatch": "Checksum mismatch for {{file}}. File may be corrupted.",
+    "cachingFiles": "Caching files...",
+    "usingCache": "Using cached files...",
+    "downloadComplete": "Download completed for {{file}}",
+    "installationSteps": {
+      "fetchingManifest": "Fetching file information...",
+      "downloadingFiles": "Downloading {{current}}/{{total}} files...",
+      "verifyingFiles": "Verifying file {{current}}/{{total}}...",
+      "extractingArchive": "Extracting archive...",
+      "installingFiles": "Installing files to game...",
+      "cleanup": "Cleaning up temporary files...",
+      "complete": "Installation complete!"
+    }
+  },
   "common": {
     "cancel": "Cancel",
     "rename": "Rename",
@@ -113,6 +144,8 @@
     "save": "Save",
     "delete": "Delete",
     "edit": "Edit",
-    "close": "Close"
+    "close": "Close",
+    "retry": "Retry",
+    "skip": "Skip"
   }
 }

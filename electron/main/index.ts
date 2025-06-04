@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import AdmZip from 'adm-zip'; // Aggiunto per la gestione degli ZIP
+import { v4 as uuidv4 } from 'uuid'; // Aggiunto per generare ID univoci per il download
 import { createExtractorFromFile } from 'node-unrar-js'; // Aggiunto per la gestione dei RAR
 // 7zip-min sarà importato usando 'require' più avanti a causa di problemi con l'importazione ESM e i tipi
 import { update } from './update.js';
@@ -958,21 +959,211 @@ async function copyDirRecursive(src: string, dest: string): Promise<void> {
   }
 }
 
-// --- IPC Handler for Installing Mod Enabler ---
+// --- IPC Handler for Installing Mod Enabler (Download-on-Demand System) ---
+
+/**
+ * Interface for the manifest structure downloaded from GitHub Releases
+ */
+interface PayloadManifest {
+  version: string;
+  files: {
+    filename: string;
+    url: string;
+    sha256: string;
+    size: number;
+  }[];
+  description?: string;
+  timestamp?: string;
+}
+
+/**
+ * Interface for cached payload information
+ */
+interface CachedPayload {
+  version: string;
+  cachedAt: number;
+  files: {
+    filename: string;
+    localPath: string;
+    sha256: string;
+  }[];
+}
+
+/**
+ * Downloads a file from URL and verifies its SHA256 hash
+ */
+async function downloadAndVerifyFile(
+  url: string,
+  destinationPath: string,
+  expectedSha256: string,
+  progressCallback?: (progress: number) => void
+): Promise<void> {
+  log.info(`[DownloadOnDemand] Starting download: ${url} -> ${destinationPath}`);
+  
+  try {
+    const https = require('https');
+    const http = require('http');
+    const crypto = require('crypto');
+    
+    const protocol = url.startsWith('https:') ? https : http;
+    
+    return new Promise((resolve, reject) => {
+      const request = protocol.get(url, (response: any) => {
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          // Handle redirects (common with GitHub releases)
+          const redirectUrl = response.headers.location;
+          log.info(`[DownloadOnDemand] Following redirect to: ${redirectUrl}`);
+          downloadAndVerifyFile(redirectUrl, destinationPath, expectedSha256, progressCallback)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        
+        if (response.statusCode !== 200) {
+          reject(new Error(`Download failed with status ${response.statusCode}: ${response.statusMessage}`));
+          return;
+        }
+        
+        const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+        let downloadedSize = 0;
+        
+        const fileStream = fs.createWriteStream(destinationPath);
+        const hash = crypto.createHash('sha256');
+        
+        response.on('data', (chunk: Buffer) => {
+          downloadedSize += chunk.length;
+          hash.update(chunk);
+          fileStream.write(chunk);
+          
+          if (progressCallback && totalSize > 0) {
+            progressCallback((downloadedSize / totalSize) * 100);
+          }
+        });
+        
+        response.on('end', () => {
+          fileStream.end();
+          
+          const calculatedHash = hash.digest('hex').toLowerCase();
+          const expectedHashLower = expectedSha256.toLowerCase();
+          
+          if (calculatedHash !== expectedHashLower) {
+            fs.unlinkSync(destinationPath); // Remove corrupted file
+            reject(new Error(`SHA256 verification failed. Expected: ${expectedHashLower}, Got: ${calculatedHash}`));
+            return;
+          }
+          
+          log.info(`[DownloadOnDemand] Successfully downloaded and verified: ${destinationPath}`);
+          resolve();
+        });
+        
+        response.on('error', (error: Error) => {
+          fileStream.destroy();
+          if (fs.existsSync(destinationPath)) {
+            fs.unlinkSync(destinationPath);
+          }
+          reject(error);
+        });
+      });
+      
+      request.on('error', (error: Error) => {
+        reject(error);
+      });
+      
+      request.setTimeout(30000, () => {
+        request.destroy();
+        reject(new Error('Download timeout after 30 seconds'));
+      });
+    });
+  } catch (error) {
+    log.error(`[DownloadOnDemand] Error downloading ${url}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches and parses the manifest from GitHub Releases
+ */
+async function fetchManifest(manifestUrl: string): Promise<PayloadManifest> {
+  log.info(`[DownloadOnDemand] Fetching manifest from: ${manifestUrl}`);
+  
+  try {
+    const https = require('https');
+    
+    return new Promise((resolve, reject) => {
+      const request = https.get(manifestUrl, (response: any) => {
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          // Handle redirects
+          const redirectUrl = response.headers.location;
+          log.info(`[DownloadOnDemand] Manifest redirect to: ${redirectUrl}`);
+          fetchManifest(redirectUrl).then(resolve).catch(reject);
+          return;
+        }
+        
+        if (response.statusCode !== 200) {
+          reject(new Error(`Manifest fetch failed with status ${response.statusCode}: ${response.statusMessage}`));
+          return;
+        }
+        
+        let data = '';
+        response.on('data', (chunk: string) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          try {
+            const manifest: PayloadManifest = JSON.parse(data);
+            log.info(`[DownloadOnDemand] Successfully fetched manifest version: ${manifest.version}`);
+            resolve(manifest);
+          } catch (parseError) {
+            reject(new Error(`Failed to parse manifest JSON: ${parseError}`));
+          }
+        });
+      });
+      
+      request.on('error', (error: Error) => {
+        reject(error);
+      });
+      
+      request.setTimeout(15000, () => {
+        request.destroy();
+        reject(new Error('Manifest fetch timeout after 15 seconds'));
+      });
+    });
+  } catch (error) {
+    log.error(`[DownloadOnDemand] Error fetching manifest:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Gets the cache directory for storing downloaded payloads
+ */
+function getPayloadCacheDir(): string {
+  const userDataPath = app.getPath('userData');
+  const cacheDir = nodePath.join(userDataPath, 'mod_enabler_cache');
+  
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    log.info(`[DownloadOnDemand] Created cache directory: ${cacheDir}`);
+  }
+  
+  return cacheDir;
+}
+
+/**
+ * Main handler for installing Mod Enabler using Download-on-Demand system
+ */
 ipcMain.handle('install-mod-enabler', async () => {
   const gameFolderPath = store.get('gameFolderPath');
   if (!gameFolderPath) {
-    log.error('[Main Process] Install Mod Enabler: Game folder path not set.');
+    log.error('[DownloadOnDemand] Install Mod Enabler: Game folder path not set.');
     return {
       success: false,
       error: 'Game folder path is not configured. Please set it up first.',
     };
   }
 
-  log.info(
-    '[Main Process] Attempting to install Mod Enabler to:',
-    gameFolderPath
-  );
+  log.info(`[DownloadOnDemand] Starting Mod Enabler installation to: ${gameFolderPath}`);
 
   const destinationDir = nodePath.join(
     gameFolderPath,
@@ -981,84 +1172,206 @@ ipcMain.handle('install-mod-enabler', async () => {
     'Win64'
   );
 
-  // Definisci i percorsi sorgente RELATIVI alla directory dell'applicazione
-  // __dirname in un contesto Electron Main process punta a dist-electron/main o simile se impacchettato
-  // quindi dobbiamo costruire il percorso a 'electron/resources' correttamente.
-  // Quando impacchettato, la cartella 'resources' è di solito al livello di app.asar o simile.
-  // process.resourcesPath è un modo più affidabile per accedere alla cartella resources.
-  const resourcesPath = process.resourcesPath; // Questo dovrebbe puntare alla cartella resources dell'app impacchettata
-
-  // Se in sviluppo, process.resourcesPath potrebbe non essere definito o puntare altrove.
-  // Forniamo un fallback per lo sviluppo basato sulla struttura del progetto.
-  // Questo presuppone che 'electron' sia una cartella al livello della root del progetto.
-  const devResourcesFallbackPath = nodePath.join(
-    app.getAppPath(),
-    'electron',
-    'resources'
-  );
-  const actualResourcesPath = fs.existsSync(
-    nodePath.join(resourcesPath, 'mod_enabler_payload')
-  )
-    ? resourcesPath
-    : devResourcesFallbackPath;
-
-  log.info(
-    `[Main Process] Using resources path for Mod Enabler: ${actualResourcesPath}`
-  );
-
-  const sourceDsoundPath = nodePath.join(
-    actualResourcesPath,
-    'mod_enabler_payload',
-    'dsound.dll'
-  );
-  const sourceBitfixFolderPath = nodePath.join(
-    actualResourcesPath,
-    'mod_enabler_payload',
-    'bitfix'
-  );
-
-  const destinationDsoundPath = nodePath.join(destinationDir, 'dsound.dll');
-  const destinationBitfixFolderPath = nodePath.join(destinationDir, 'bitfix');
+  // GitHub Releases configuration
+  const GITHUB_OWNER = 'NebulaStudioOfficial'; // Replace with actual GitHub username/org
+  const GITHUB_REPO = 'inzoi-mod-manager'; // Replace with actual repository name
+  const MANIFEST_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/manifest.json`;
 
   try {
-    // 1. Assicurati che la directory di destinazione esista
+    // 1. Ensure destination directory exists
     if (!fs.existsSync(destinationDir)) {
       fs.mkdirSync(destinationDir, { recursive: true });
-      log.info(
-        '[Main Process] Created destination directory for Mod Enabler:',
-        destinationDir
-      );
+      log.info(`[DownloadOnDemand] Created destination directory: ${destinationDir}`);
     }
 
-    // 2. Controlla se i file sorgente esistono
-    if (!fs.existsSync(sourceDsoundPath)) {
-      const err = `Mod Enabler source file dsound.dll not found at ${sourceDsoundPath}`;
-      log.error(`[Main Process] ${err}`);
-      return { success: false, error: err };
+    // 2. Check if we have cached payloads and they're still valid
+    const cacheDir = getPayloadCacheDir();
+    const cachedPayloadFile = nodePath.join(cacheDir, 'cached_payload.json');
+    let cachedPayload: CachedPayload | null = null;
+    
+    if (fs.existsSync(cachedPayloadFile)) {
+      try {
+        const cachedData = fs.readFileSync(cachedPayloadFile, 'utf-8');
+        cachedPayload = JSON.parse(cachedData);
+        log.info(`[DownloadOnDemand] Found cached payload version: ${cachedPayload?.version}`);
+      } catch (error) {
+        log.warn(`[DownloadOnDemand] Failed to parse cached payload info:`, error);
+        cachedPayload = null;
+      }
     }
-    if (!fs.existsSync(sourceBitfixFolderPath)) {
-      const err = `Mod Enabler source folder bitfix not found at ${sourceBitfixFolderPath}`;
-      log.error(`[Main Process] ${err}`);
-      return { success: false, error: err };
+
+    // 3. Fetch the latest manifest from GitHub Releases
+    log.info(`[DownloadOnDemand] Fetching latest manifest...`);
+    const manifest = await fetchManifest(MANIFEST_URL);
+    
+    // 4. Check if we need to download new files
+    let needsDownload = true;
+    if (cachedPayload && cachedPayload.version === manifest.version) {
+      // Check if all cached files still exist and have correct hashes
+      let allFilesValid = true;
+      for (const cachedFile of cachedPayload.files) {
+        if (!fs.existsSync(cachedFile.localPath)) {
+          log.info(`[DownloadOnDemand] Cached file missing: ${cachedFile.localPath}`);
+          allFilesValid = false;
+          break;
+        }
+        
+        // Quick SHA256 verification of cached file
+        try {
+          const crypto = require('crypto');
+          const fileBuffer = fs.readFileSync(cachedFile.localPath);
+          const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex').toLowerCase();
+          if (fileHash !== cachedFile.sha256.toLowerCase()) {
+            log.info(`[DownloadOnDemand] Cached file hash mismatch: ${cachedFile.localPath}`);
+            allFilesValid = false;
+            break;
+          }
+        } catch (error) {
+          log.warn(`[DownloadOnDemand] Error verifying cached file ${cachedFile.localPath}:`, error);
+          allFilesValid = false;
+          break;
+        }
+      }
+      
+      if (allFilesValid) {
+        log.info(`[DownloadOnDemand] All cached files are valid, skipping download`);
+        needsDownload = false;
+      }
     }
 
-    // 3. Copia dsound.dll
-    log.info(
-      `[Main Process] Copying dsound.dll from ${sourceDsoundPath} to ${destinationDsoundPath}`
-    );
-    fs.copyFileSync(sourceDsoundPath, destinationDsoundPath);
-    log.info('[Main Process] dsound.dll copied successfully.');
+    // 5. Download files if needed
+    const downloadId = uuidv4();
+    let finalPayloadFiles: { filename: string; localPath: string; sha256: string; }[] = [];
+    
+    if (needsDownload) {
+      log.info(`[DownloadOnDemand] Starting download of ${manifest.files.length} file(s)...`);
+      
+      // Send progress update to renderer
+      win?.webContents.send('mod-enabler-install-progress', {
+        stage: 'downloading',
+        progress: 0,
+        message: 'Downloading payload files...'
+      });
+      
+      for (let i = 0; i < manifest.files.length; i++) {
+        const file = manifest.files[i];
+        const tempFileName = `${downloadId}_${file.filename}`;
+        const tempFilePath = nodePath.join(cacheDir, tempFileName);
+        
+        // Progress callback for individual file download
+        const progressCallback = (fileProgress: number) => {
+          const overallProgress = ((i / manifest.files.length) * 100) + (fileProgress / manifest.files.length);
+          win?.webContents.send('mod-enabler-install-progress', {
+            stage: 'downloading',
+            progress: Math.round(overallProgress),
+            message: `Downloading ${file.filename}... (${Math.round(fileProgress)}%)`
+          });
+        };
+        
+        await downloadAndVerifyFile(file.url, tempFilePath, file.sha256, progressCallback);
+        
+        finalPayloadFiles.push({
+          filename: file.filename,
+          localPath: tempFilePath,
+          sha256: file.sha256
+        });
+      }
+      
+      // Update cache info
+      const newCachedPayload: CachedPayload = {
+        version: manifest.version,
+        cachedAt: Date.now(),
+        files: finalPayloadFiles
+      };
+      
+      fs.writeFileSync(cachedPayloadFile, JSON.stringify(newCachedPayload, null, 2), 'utf-8');
+      log.info(`[DownloadOnDemand] Updated cache with version: ${manifest.version}`);
+    } else {
+      // Use cached files
+      finalPayloadFiles = cachedPayload!.files;
+    }
 
-    // 4. Copia la cartella bitfix
-    log.info(
-      `[Main Process] Copying bitfix folder from ${sourceBitfixFolderPath} to ${destinationBitfixFolderPath}`
-    );
-    await copyDirRecursive(sourceBitfixFolderPath, destinationBitfixFolderPath);
-    log.info('[Main Process] bitfix folder copied successfully.');
+    // 6. Extract and install files
+    win?.webContents.send('mod-enabler-install-progress', {
+      stage: 'installing',
+      progress: 0,
+      message: 'Installing payload files...'
+    });
+    
+    for (let i = 0; i < finalPayloadFiles.length; i++) {
+      const file = finalPayloadFiles[i];
+      
+      if (file.filename.endsWith('.zip')) {
+        // Extract ZIP file
+        log.info(`[DownloadOnDemand] Extracting ZIP: ${file.filename}`);
+        const zip = new AdmZip(file.localPath);
+        zip.extractAllTo(destinationDir, true);
+        log.info(`[DownloadOnDemand] Successfully extracted ${file.filename} to ${destinationDir}`);
+      } else {
+        // Copy individual file
+        const destPath = nodePath.join(destinationDir, file.filename);
+        fs.copyFileSync(file.localPath, destPath);
+        log.info(`[DownloadOnDemand] Copied ${file.filename} to ${destPath}`);
+      }
+      
+      const progress = Math.round(((i + 1) / finalPayloadFiles.length) * 100);
+      win?.webContents.send('mod-enabler-install-progress', {
+        stage: 'installing',
+        progress,
+        message: `Installing ${file.filename}...`
+      });
+    }
 
-    return { success: true };
+    // 7. Verify installation
+    const expectedFiles = ['dsound.dll', 'bitfix/sig.lua'];
+    for (const expectedFile of expectedFiles) {
+      const filePath = nodePath.join(destinationDir, expectedFile);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Required file not found after installation: ${expectedFile}`);
+      }
+    }
+
+    // 8. Clean up old temporary files (keep cache for reuse)
+    if (needsDownload) {
+      // Remove any old temporary files that might be from previous downloads
+      const cacheFiles = fs.readdirSync(cacheDir);
+      for (const cacheFile of cacheFiles) {
+        if (cacheFile.includes('_') && !cacheFile.includes(downloadId) && cacheFile !== 'cached_payload.json') {
+          try {
+            const oldTempPath = nodePath.join(cacheDir, cacheFile);
+            if (fs.statSync(oldTempPath).isFile()) {
+              fs.unlinkSync(oldTempPath);
+              log.info(`[DownloadOnDemand] Cleaned up old temp file: ${cacheFile}`);
+            }
+          } catch (error) {
+            log.warn(`[DownloadOnDemand] Failed to clean up old temp file ${cacheFile}:`, error);
+          }
+        }
+      }
+    }
+
+    win?.webContents.send('mod-enabler-install-progress', {
+      stage: 'complete',
+      progress: 100,
+      message: 'Mod Enabler installed successfully!'
+    });
+
+    log.info(`[DownloadOnDemand] Mod Enabler installation completed successfully`);
+    return {
+      success: true,
+      version: manifest.version,
+      message: 'Mod Enabler installed successfully using clean download system'
+    };
+
   } catch (error: any) {
-    log.error('[Main Process] Error installing Mod Enabler:', error);
+    log.error('[DownloadOnDemand] Error installing Mod Enabler:', error);
+    
+    win?.webContents.send('mod-enabler-install-progress', {
+      stage: 'error',
+      progress: 0,
+      message: `Installation failed: ${error.message}`
+    });
+    
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,

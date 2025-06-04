@@ -106,6 +106,37 @@
       "loadFailed": "Ops! Abbiamo avuto problemi a caricare il tuo profilo. Errore: {{error}}. Prova a selezionarlo di nuovo."
     }
   },
+  "modEnabler": {
+    "installing": "Installazione Mod Enabler...",
+    "downloading": "Scaricamento file necessari...",
+    "downloadProgress": "Download in corso: {{percent}}%",
+    "extracting": "Estrazione file...",
+    "verifying": "Verifica integrità file...",
+    "installSuccess": "Mod Enabler installato con successo!",
+    "installFailed": "Installazione Mod Enabler fallita",
+    "downloadFailed": "Download fallito: {{error}}",
+    "extractFailed": "Estrazione fallita: {{error}}",
+    "verificationFailed": "Verifica integrità fallita per {{file}}",
+    "networkError": "Errore di connessione. Verifica la connessione internet.",
+    "manifestError": "Errore nel caricamento del manifest dei file",
+    "cacheCleared": "Cache del Mod Enabler pulita con successo",
+    "retrying": "Nuovo tentativo... ({{attempt}}/{{maxAttempts}})",
+    "timeout": "Timeout durante il download. Riprova più tardi.",
+    "githubError": "Errore di accesso a GitHub Releases",
+    "checksumMismatch": "Checksum non corrispondente per {{file}}. File potenzialmente corrotto.",
+    "cachingFiles": "Memorizzazione file in cache...",
+    "usingCache": "Utilizzo file dalla cache...",
+    "downloadComplete": "Download completato per {{file}}",
+    "installationSteps": {
+      "fetchingManifest": "Recupero informazioni sui file...",
+      "downloadingFiles": "Scaricamento {{current}}/{{total}} file...",
+      "verifyingFiles": "Verifica file {{current}}/{{total}}...",
+      "extractingArchive": "Estrazione archivio...",
+      "installingFiles": "Installazione file nel gioco...",
+      "cleanup": "Pulizia file temporanei...",
+      "complete": "Installazione completata!"
+    }
+  },
   "common": {
     "cancel": "Annulla",
     "rename": "Rinomina",
@@ -113,6 +144,8 @@
     "save": "Salva",
     "delete": "Elimina",
     "edit": "Modifica",
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "retry": "Riprova",
+    "skip": "Salta"
   }
 }
