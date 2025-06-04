@@ -1,38 +1,41 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './i18n'; // Importa la configurazione di i18next
+import './i18n';
 import App from './App.tsx';
-// import { Toaster } from '@/components/ui/sonner.tsx'; // Rimosso se non usato altrove in questo file
 import './index.css';
 
-// Global error handler for the renderer process
-window.onerror = (message, source, lineno, colno, error) => {
-  if (
-    window.electronAPI &&
-    typeof window.electronAPI.sendToMainLog === 'function'
-  ) {
-    window.electronAPI.sendToMainLog('error', 'Unhandled error in renderer:', {
-      message,
-      source,
-      lineno,
-      colno,
-      error,
-    });
+const handleGlobalError = (
+  message: any,
+  source?: string,
+  lineno?: number,
+  colno?: number,
+  error?: Error
+) => {
+  const errorData = { message, source, lineno, colno, error };
+
+  if (window.electronAPI?.sendToMainLog) {
+    window.electronAPI.sendToMainLog(
+      'error',
+      'Unhandled error in renderer:',
+      errorData
+    );
   } else {
-    // Fallback se electronAPI non è disponibile per qualche motivo (improbabile ma sicuro)
     console.error(
       'Unhandled error in renderer (electronAPI.sendToMainLog not available):',
-      { message, source, lineno, colno, error }
+      errorData
     );
   }
-  // Prevent default handling
+
   return true;
 };
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+window.onerror = handleGlobalError;
+
+const rootElement = document.getElementById('root') as HTMLElement;
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <App />
-    {/* <Toaster /> Rimosso da qui */}
   </React.StrictMode>
 );
 

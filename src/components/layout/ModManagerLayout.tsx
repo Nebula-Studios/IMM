@@ -1,28 +1,22 @@
-import React, {
-  useState,
-  useCallback,
-  useRef,
-  useEffect,
-  FC,
-  // DragEvent, // Rimosso perché useremo dnd-kit per il drag tra colonne
-} from 'react';
+import React, { useState, useCallback, useRef, useEffect, FC } from 'react';
 import {
   DndContext,
   DragEndEvent,
   KeyboardSensor,
   PointerSensor,
-  closestCenter, // Modificato da closestCorners
+  closestCenter,
   useSensor,
   useSensors,
-  DragOverlay, // Per un feedback di trascinamento migliore
+  DragOverlay,
   UniqueIdentifier,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import ModList from '../mod-management/ModList.tsx';
-import ModCard, { ModItem } from '../mod-management/ModCard.tsx'; // Importa ModCard per DragOverlay
-import ModDropzone, { StagedModInfo } from '../mod-management/ModDropzone.tsx';
 import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next'; // Aggiunto per i18next
+import { useTranslation } from 'react-i18next';
+
+import ModList from '../mod-management/ModList.tsx';
+import ModCard, { ModItem } from '../mod-management/ModCard.tsx';
+import ModDropzone, { StagedModInfo } from '../mod-management/ModDropzone.tsx';
 import { profileService } from '../../services/profileService.ts';
 import {
   Dialog,
@@ -36,182 +30,153 @@ import {
 import { Input } from '../ui/input.tsx';
 import { Button } from '../ui/button.tsx';
 import { Label } from '../ui/label.tsx';
-import { ArrowUpDown } from 'lucide-react'; // Importa l'icona
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../ui/tooltip.tsx'; // Importa i componenti Tooltip
-
-/**
- * @file ModManagerLayout.tsx
- * @description Component provides the main UI structure for the mod manager,
- * featuring two columns for disabled and enabled mods.
- * The "Disabled Mods" column includes an integrated dropzone.
- */
 
 interface ModManagerLayoutProps {
-  // Props will be defined here in the future as needed
   exposeRefreshFunction?: (refreshFn: () => Promise<void>) => void;
 }
+
+const MIN_ANIMATION_TIME = 500;
+const RESIZER_MIN_WIDTH = 30;
+const RESIZER_MAX_WIDTH = 70;
 
 const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   exposeRefreshFunction,
 }) => {
   const { t } = useTranslation();
+
+  // Layout state
   const [leftPanelWidth, setLeftPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Stato per dnd-kit
-  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null); // Per DragOverlay
+  // Drag and drop state
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const [isDraggingOverDisabledColumn, setIsDraggingOverDisabledColumn] =
+    useState(false);
+  const [isDraggingOverEnabledColumn, setIsDraggingOverEnabledColumn] =
+    useState(false);
 
-  // Stato per le liste di mod
+  // Mod lists state
   const [disabledMods, setDisabledMods] = useState<ModItem[]>([]);
   const [enabledMods, setEnabledMods] = useState<ModItem[]>([]);
 
-  // Stato per il dialog di rinomina
+  // Rename dialog state
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [modToRename, setModToRename] = useState<ModItem | null>(null);
   const [newModName, setNewModName] = useState('');
 
-  // Ref per tracciare se il caricamento iniziale è avvenuto
+  // Loading state
   const initialLoadDone = useRef(false);
 
-  // NUOVO STATO per tracciare il drag sulla colonna dei mod disabilitati
-  const [isDraggingOverDisabledColumn, setIsDraggingOverDisabledColumn] =
-    useState(false);
-  // NUOVO STATO per tracciare il drag sulla colonna dei mod abilitati
-  const [isDraggingOverEnabledColumn, setIsDraggingOverEnabledColumn] =
-    useState(false);
+  const enableMod = async (modToEnable: ModItem) => {
+    console.log(
+      `[ContextMenu] Enabling mod: ${modToEnable.name} (path: ${modToEnable.path})`
+    );
 
-  // --- Context Menu Action Handlers ---
+    try {
+      const stagingDirectoryName = modToEnable.path
+        .split(/[\\/]/)
+        .slice(-2, -1)[0];
+      const result = await window.electronAPI.enableMod(
+        modToEnable.path,
+        stagingDirectoryName
+      );
+
+      if (result.success && result.newPath) {
+        const enabledModItem: ModItem = {
+          ...modToEnable,
+          activePath: result.newPath,
+          numericPrefix: result.numericPrefix,
+        };
+
+        setEnabledMods((prev) => [...prev, enabledModItem]);
+        setDisabledMods((prev) =>
+          prev.filter((mod) => mod.id !== modToEnable.id)
+        );
+        toast.success(
+          `Mod "${modToEnable.name}" enabled via context menu. Active path: ${result.newPath}`
+        );
+        await profileService.updateActiveProfileModConfigurationIfNeeded();
+      } else {
+        toast.error(
+          `Failed to enable mod "${modToEnable.name}": ${result.error}`
+        );
+      }
+    } catch (error: any) {
+      toast.error(`Error enabling mod "${modToEnable.name}": ${error.message}`);
+    }
+  };
+
+  const disableMod = async (modToDisable: ModItem) => {
+    console.log(
+      `[ContextMenu] Disabling mod: ${modToDisable.name} (activePath: ${modToDisable.activePath})`
+    );
+
+    try {
+      if (!modToDisable.activePath) {
+        toast.error(
+          `Mod "${modToDisable.name}" does not have an active path. Cannot disable properly.`
+        );
+        console.error(
+          `[ContextMenu] Mod "${modToDisable.name}" is missing activePath.`
+        );
+        return;
+      }
+
+      const disableResult = await window.electronAPI.disableMod(modToDisable);
+
+      if (disableResult.success) {
+        toast.success(
+          `Mod "${modToDisable.name}" directory removed from game folder.`
+        );
+
+        const { activePath, ...restOfModToDisable } = modToDisable;
+        setDisabledMods((prev) => [...prev, restOfModToDisable]);
+
+        const remainingEnabledMods = enabledMods.filter(
+          (mod) => mod.id !== modToDisable.id
+        );
+
+        if (remainingEnabledMods.length > 0) {
+          console.log(
+            '[ContextMenu] Calling handleEnabledModOrderChange to re-evaluate order and names after disabling a mod.'
+          );
+          await handleEnabledModOrderChange(
+            [...remainingEnabledMods],
+            `Disable mod ${modToDisable.name} and reorder/rename`
+          );
+        } else {
+          setEnabledMods([]);
+          console.log(
+            '[ContextMenu] No enabled mods left after disabling. List cleared.'
+          );
+          await profileService.updateActiveProfileModConfigurationIfNeeded();
+        }
+      } else {
+        toast.error(
+          `Failed to disable mod "${modToDisable.name}" (remove directory): ${disableResult.error}`
+        );
+      }
+    } catch (error: any) {
+      toast.error(
+        `Error disabling mod "${modToDisable.name}": ${error.message}`
+      );
+    }
+  };
+
   const handleToggleEnableMod = async (
     modId: string,
     currentType: 'enabled' | 'disabled'
   ) => {
     if (currentType === 'disabled') {
-      // Logic to enable (move from disabled to enabled)
       const modToEnable = disabledMods.find((mod) => mod.id === modId);
       if (modToEnable) {
-        console.log(
-          `[ContextMenu] Enabling mod: ${modToEnable.name} (path: ${modToEnable.path})`
-        );
-        try {
-          const stagingDirectoryName = modToEnable.path
-            .split(/[\\/]/)
-            .slice(-2, -1)[0];
-          const result = await window.electronAPI.enableMod(
-            modToEnable.path, // Path del .pak nello staging
-            stagingDirectoryName // Nome della cartella nello staging (senza .pak)
-          );
-          if (result.success && result.newPath) {
-            const enabledModItem: ModItem = {
-              ...modToEnable,
-              activePath: result.newPath, // Salva il percorso attivo nella directory ~mods
-              numericPrefix: result.numericPrefix, // Salva il prefisso numerico restituito
-            };
-            setEnabledMods((prev) => [...prev, enabledModItem]);
-            setDisabledMods((prev) => prev.filter((mod) => mod.id !== modId));
-            toast.success(
-              `Mod "${modToEnable.name}" enabled via context menu. Active path: ${result.newPath}`
-            );
-            await profileService.updateActiveProfileModConfigurationIfNeeded();
-          } else {
-            toast.error(
-              `Failed to enable mod "${modToEnable.name}": ${result.error}`
-            );
-          }
-        } catch (error: any) {
-          toast.error(
-            `Error enabling mod "${modToEnable.name}": ${error.message}`
-          );
-        }
+        await enableMod(modToEnable);
       }
     } else {
-      // Logic to disable (move from enabled to disabled)
       const modToDisable = enabledMods.find((mod) => mod.id === modId);
       if (modToDisable) {
-        console.log(
-          `[ContextMenu] Disabling mod: ${modToDisable.name} (activePath: ${modToDisable.activePath})`
-        );
-        try {
-          if (!modToDisable.activePath) {
-            toast.error(
-              `Mod "${modToDisable.name}" does not have an active path. Cannot disable properly.`
-            );
-            console.error(
-              `[ContextMenu] Mod "${modToDisable.name}" (ID: ${modId}) is missing activePath.`
-            );
-            return;
-          }
-
-          // Determina se questo è un mod virtuale (il path/ID o activePath contiene la directory ~mods invece che staging)
-          const isVirtualMod =
-            modToDisable.activePath?.includes('~mods') ||
-            modToDisable.path?.includes('~mods') ||
-            modToDisable.id?.includes('~mods') ||
-            false;
-
-          // Per i mod virtuali, usa il nome base invece del nome della cartella con prefisso
-          const stagingDirectoryName = isVirtualMod
-            ? modToDisable.name
-            : modToDisable.path.split(/[\\/]/).slice(-2, -1)[0];
-
-          console.log(
-            `[ContextMenu] Extracted stagingDirectoryName for disable: ${stagingDirectoryName}, isVirtualMod: ${isVirtualMod}`
-          );
-
-          const numericPrefixToUse = modToDisable.numericPrefix; // Questa riga potrebbe non essere più necessaria qui se l'oggetto intero viene passato
-          console.log(
-            `[ContextMenu] Disabling mod (object to pass):`,
-            modToDisable
-          );
-          // Passa l'intero oggetto modToDisable
-          const disableResult =
-            await window.electronAPI.disableMod(modToDisable);
-
-          if (disableResult.success) {
-            toast.success(
-              `Mod "${modToDisable.name}" directory removed from game folder.`
-            );
-
-            const { activePath, ...restOfModToDisable } = modToDisable;
-            setDisabledMods((prev) => [...prev, restOfModToDisable]);
-
-            const remainingEnabledMods = enabledMods.filter(
-              (mod) => mod.id !== modId
-            );
-
-            if (remainingEnabledMods.length > 0) {
-              console.log(
-                '[ContextMenu] Calling handleEnabledModOrderChange to re-evaluate order and names after disabling a mod.'
-              );
-              await handleEnabledModOrderChange(
-                [...remainingEnabledMods],
-                `Disable mod ${modToDisable.name} and reorder/rename`
-              );
-              // profileService.updateActiveProfileModConfigurationIfNeeded() sarà chiamato da handleEnabledModOrderChange
-            } else {
-              setEnabledMods([]);
-              console.log(
-                '[ContextMenu] No enabled mods left after disabling. List cleared.'
-              );
-              await profileService.updateActiveProfileModConfigurationIfNeeded();
-            }
-            // Il toast di successo per la disabilitazione e la potenziale rinumerazione
-            // è gestito da disableResult e da handleEnabledModOrderChange.
-          } else {
-            toast.error(
-              `Failed to disable mod "${modToDisable.name}" (remove directory): ${disableResult.error}`
-            );
-          }
-        } catch (error: any) {
-          toast.error(
-            `Error disabling mod "${modToDisable.name}": ${error.message}`
-          );
-        }
+        await disableMod(modToDisable);
       }
     }
   };
@@ -220,11 +185,17 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
     const mod = [...disabledMods, ...enabledMods].find((m) => m.id === modId);
     if (mod) {
       setModToRename(mod);
-      setNewModName(currentName); // Pre-compila con il nome attuale
+      setNewModName(currentName);
       setIsRenameDialogOpen(true);
     } else {
       toast.error(`Mod with ID "${modId}" not found for renaming.`);
     }
+  };
+
+  const resetRenameDialog = () => {
+    setIsRenameDialogOpen(false);
+    setModToRename(null);
+    setNewModName('');
   };
 
   const submitRenameMod = async () => {
@@ -239,8 +210,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
 
     if (oldName === trimmedNewName) {
       toast.info('New name is the same as the current name. No changes made.');
-      setIsRenameDialogOpen(false);
-      setModToRename(null);
+      resetRenameDialog();
       return;
     }
 
@@ -255,36 +225,8 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         console.log(
           `[Rename] Mod "${oldName}" is enabled. Attempting to disable it first.`
         );
-        try {
-          // Determina se questo è un mod virtuale (il path/ID o activePath contiene la directory ~mods invece che staging)
-          const isVirtualMod =
-            modToRename.activePath?.includes('~mods') ||
-            modToRename.path?.includes('~mods') ||
-            modToRename.id?.includes('~mods') ||
-            false;
 
-          const stagingDirectoryName = modToRename.path
-            .split(/[\\/]/)
-            .slice(-2, -1)[0];
-          if (!stagingDirectoryName) {
-            throw new Error(
-              'Could not determine staging directory name for disabling.'
-            );
-          }
-          console.log(
-            `[Rename] Disabling mod "${modToRename.name}": stagingDirectoryName: ${stagingDirectoryName}, isVirtualMod: ${isVirtualMod}`
-          );
-          // Per la rinomina, se il mod era attivo, il numericPrefix non è strettamente necessario
-          // per la disableMod chiamata qui, perché la cartella verrà comunque rimossa in base al nome.
-          // Tuttavia, per coerenza con handleToggleEnableMod, potremmo passarlo se disponibile.
-          // Ma dato che il mod viene poi spostato ai disabilitati (perdendo activePath e numericPrefix),
-          // non è critico qui come lo è per la disabilitazione diretta.
-          // Per ora, manteniamo la chiamata a disableMod senza numericPrefix qui,
-          // poiché l'obiettivo principale è pulire la cartella ~mods prima della rinomina dello staging.
-          // L'handler disableMod in main dovrebbe essere in grado di gestire l'assenza di numericPrefix
-          // se isVirtualMod è false, cercando la cartella con qualsiasi prefisso.
-          // La modifica critica è per la disabilitazione utente diretta.
-          // Passa l'intero oggetto modToRename
+        try {
           const disableResult =
             await window.electronAPI.disableMod(modToRename);
           if (disableResult.success) {
@@ -313,7 +255,6 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         }
       }
 
-      // Procedi con la rinomina della cartella di staging
       const result = await window.electronAPI.renameModStagingDirectory(
         oldModPath,
         trimmedNewName
@@ -322,14 +263,13 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       if (result.success && result.newModPath && result.newModName) {
         const updatedModItem: ModItem = {
           ...modToRename,
-          id: result.newModPath, // L'ID ora riflette il nuovo path
-          name: result.newModName, // Il nome visualizzato
-          path: result.newModPath, // Il path principale del mod
-          activePath: undefined, // Se era abilitato, ora è disabilitato e non ha un activePath
+          id: result.newModPath,
+          name: result.newModName,
+          path: result.newModPath,
+          activePath: undefined,
         };
 
         if (modWasEnabled) {
-          // Rimuovi dalla lista abilitati (se ancora lì per qualche motivo) e aggiungi/aggiorna nella lista disabilitati
           setEnabledMods((prev) =>
             prev.filter(
               (m) => m.id !== modToRename.id && m.id !== updatedModItem.id
@@ -338,14 +278,13 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           setDisabledMods((prev) => [
             ...prev.filter(
               (m) => m.id !== modToRename.id && m.id !== updatedModItem.id
-            ), // Rimuovi vecchia e nuova versione se presenti
-            updatedModItem, // Aggiungi la versione aggiornata
+            ),
+            updatedModItem,
           ]);
           toast.success(
             `Mod "${oldName}" renamed to "${result.newModName}" and moved to disabled mods.`
           );
         } else {
-          // Se era già disabilitato, aggiornalo semplicemente nella lista dei disabilitati
           setDisabledMods((prev) =>
             prev.map((m) => (m.id === modToRename.id ? updatedModItem : m))
           );
@@ -367,9 +306,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       console.error('[Rename] Error:', error);
     }
 
-    setIsRenameDialogOpen(false);
-    setModToRename(null);
-    setNewModName('');
+    resetRenameDialog();
   };
 
   const handleRemoveMod = (modId: string, modName: string) => {
@@ -383,14 +320,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           'This feature will be available in a future update (Phase 2.5).',
       }
     );
-    // TODO: Implement remove logic (Phase 2.5)
-    // - Confirm with user
-    // - Call an IPC handler to delete files from staging directory
-    // - Remove mod item from state (disabledMods/enabledMods)
-    // - Potentially re-save lists
   };
-
-  // Rimosso handleReorderEnabledMod perché il riordino è gestito da dnd-kit e handleEnabledModOrderChange
 
   const handleEnabledModOrderChange = async (
     newOrderedMods: ModItem[],
@@ -401,10 +331,8 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       newOrderedMods.map((m) => m.id)
     );
 
-    // Aggiornamento ottimistico dell'UI
     setEnabledMods(newOrderedMods);
 
-    // Verifica che tutti i mod abbiano activePath prima di inviare al backend
     const allModsHaveActivePath = newOrderedMods.every(
       (mod) => mod.activePath && mod.activePath.trim() !== ''
     );
@@ -416,8 +344,6 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         'Error: Some enabled mods are missing activePath before sending to backend for order update.',
         newOrderedMods
       );
-      // Considerare se ripristinare l'ordine precedente o gestire diversamente.
-      // Per ora, l'UI rimane aggiornata ottimisticamente ma il backend non verrà chiamato.
       return;
     }
 
@@ -425,7 +351,6 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       const result = await window.electronAPI.updateModOrder(newOrderedMods);
       if (result.success && result.updatedMods) {
         toast.success('Mod order updated successfully on backend.');
-        // Sincronizza lo stato con i dati aggiornati dal backend (che includono activePath corretti)
         setEnabledMods(result.updatedMods);
         await profileService.updateActiveProfileModConfigurationIfNeeded();
       } else {
@@ -433,40 +358,78 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           `Failed to update mod order on backend: ${result.error || 'Unknown error'}`
         );
         console.error('Failed to update mod order on backend:', result.error);
-        // Se il backend fallisce, potremmo voler ripristinare l'ordine precedente
-        // Per farlo, avremmo bisogno di conservare lo stato `enabledMods` prima dell'aggiornamento ottimistico.
-        // Per semplicità, per ora non lo facciamo, ma è una considerazione per la robustezza.
-        // Esempio: setEnabledMods(previousEnabledModsState);
       }
     } catch (error: any) {
       toast.error(`Error calling updateModOrder IPC: ${error.message}`);
       console.error('IPC error updating mod order:', error);
-      // Anche qui, considerare il ripristino dello stato precedente.
     }
   };
-  // --- END Context Menu Action Handlers ---
 
-  // --- DND KIT SENSORS ---
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      // Opzionale: configurare coordinate per la tastiera se necessario
-      // coordinateGetter: sortableKeyboardCoordinates, // Se si usa sortableKeyboardCoordinates, importarlo da @dnd-kit/sortable
-    })
+    useSensor(KeyboardSensor)
   );
 
-  // --- DND KIT DRAG HANDLERS ---
   const handleDragStart = (event: { active: { id: UniqueIdentifier } }) => {
     setActiveId(event.active.id);
-    // Aggiungi classe CSS per migliorare il feedback visivo durante il drag
     document.body.style.cursor = 'grabbing';
+  };
+
+  const handleReorderWithinEnabled = async (
+    activeModId: string,
+    rawOverId: string
+  ) => {
+    const isOverAnEnabledMod = enabledMods.some((mod) => mod.id === rawOverId);
+
+    if (isOverAnEnabledMod && activeModId !== rawOverId) {
+      console.log(
+        `[DND Logic] Case 1A: Reorder within enabled. Active: ${activeModId}, Over: ${rawOverId}`
+      );
+      const oldIndex = enabledMods.findIndex((mod) => mod.id === activeModId);
+      const newIndex = enabledMods.findIndex((mod) => mod.id === rawOverId);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrderedMods = arrayMove(enabledMods, oldIndex, newIndex);
+        await handleEnabledModOrderChange(
+          newOrderedMods,
+          `Reorder ${activeModId} from ${oldIndex} to ${newIndex}`
+        );
+      } else {
+        console.error(
+          `[DND Logic] Case 1A Error: Indices not found. Old: ${oldIndex}, New: ${newIndex}`
+        );
+      }
+    } else if (
+      rawOverId === 'enabled-mods-column' &&
+      activeModId !== rawOverId
+    ) {
+      console.log(
+        `[DND Logic] Case 1B: Move to end of enabled. Active: ${activeModId}, Over: ${rawOverId}`
+      );
+      const oldIndex = enabledMods.findIndex((mod) => mod.id === activeModId);
+
+      if (oldIndex !== -1) {
+        const modToMove = enabledMods[oldIndex];
+        const tempOrderedMods = enabledMods.filter(
+          (_, index) => index !== oldIndex
+        );
+        const newOrderedMods = [...tempOrderedMods, modToMove];
+        await handleEnabledModOrderChange(
+          newOrderedMods,
+          `Move ${activeModId} to end of enabled list`
+        );
+      } else {
+        console.error(
+          `[DND Logic] Case 1B Error: oldIndex not found for ${activeModId}`
+        );
+      }
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveId(null);
-    // Ripristina il cursore
     document.body.style.cursor = '';
-    
+
     const { active, over } = event;
 
     if (!over) {
@@ -474,25 +437,20 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         '[DND] Drag ended but no "over" target. Active ID was:',
         active.id
       );
-      // Aggiungi un piccolo shake effect per indicare drop non valido
       const draggedElement = document.querySelector(`[data-id="${active.id}"]`);
       if (draggedElement) {
         draggedElement.classList.add('animate-pulse');
-        setTimeout(() => {
-          draggedElement.classList.remove('animate-pulse');
-        }, 300);
+        setTimeout(() => draggedElement.classList.remove('animate-pulse'), 300);
       }
       return;
     }
 
     const activeModId = active.id as string;
-    const rawOverId = over.id as string; // ID della colonna droppable o di un altro mod
+    const rawOverId = over.id as string;
     const overData = over.data.current;
 
     console.log(`[DND] --- DragEnd Event ---`);
-    console.log(`[DND] Active ID (active.id): ${activeModId}`);
-    console.log(`[DND] Over ID (over.id): ${rawOverId}`);
-    console.log(`[DND] Over Data (over.data.current):`, overData);
+    console.log(`[DND] Active ID: ${activeModId}, Over ID: ${rawOverId}`);
 
     const activeMod = [...enabledMods, ...disabledMods].find(
       (mod) => mod.id === activeModId
@@ -503,118 +461,48 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       );
       return;
     }
-    console.log(`[DND] Active Mod Found:`, activeMod);
 
     const sourceColumnType = enabledMods.some((mod) => mod.id === activeModId)
       ? 'enabled'
       : 'disabled';
-    const finalTargetContainerId = overData?.sortable?.containerId || rawOverId; // ID della colonna o del contenitore sortable
+    const finalTargetContainerId = overData?.sortable?.containerId || rawOverId;
 
-    console.log(`[DND] Source Column Type: ${sourceColumnType}`);
-    console.log(`[DND] Final Target Container ID: ${finalTargetContainerId}`);
+    console.log(
+      `[DND] Source Column Type: ${sourceColumnType}, Target: ${finalTargetContainerId}`
+    );
 
-    // Nuova logica per gestire riordino e spostamento
     if (sourceColumnType === 'enabled') {
-      // Il mod proviene dalla colonna ABILITATI
-      const isOverAnEnabledMod = enabledMods.some(
-        (mod) => mod.id === rawOverId
-      );
-
-      if (isOverAnEnabledMod && activeModId !== rawOverId) {
-        // CASO 1A: Riordino all'interno di enabledMods (drop su un altro mod abilitato)
+      if (finalTargetContainerId === 'disabled-mods-column') {
         console.log(
-          `[DND Logic] Case 1A: Reorder within enabled. Active: ${activeModId}, Over: ${rawOverId}`
-        );
-        const oldIndex = enabledMods.findIndex((mod) => mod.id === activeModId);
-        const newIndex = enabledMods.findIndex((mod) => mod.id === rawOverId);
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newOrderedMods = arrayMove(enabledMods, oldIndex, newIndex);
-          await handleEnabledModOrderChange(
-            newOrderedMods,
-            `Reorder ${activeModId} from ${oldIndex} to ${newIndex}`
-          );
-        } else {
-          console.error(
-            `[DND Logic] Case 1A Error: Indices not found. Old: ${oldIndex}, New: ${newIndex}`
-          );
-        }
-      } else if (
-        rawOverId === 'enabled-mods-column' &&
-        activeModId !== rawOverId
-      ) {
-        // CASO 1B: Riordino all'interno di enabledMods (drop sull'area della colonna abilitata -> sposta alla fine)
-        // (activeModId !== rawOverId è una sicurezza, ma rawOverId qui è l'ID della colonna)
-        console.log(
-          `[DND Logic] Case 1B: Move to end of enabled. Active: ${activeModId}, Over: ${rawOverId}`
-        );
-        const oldIndex = enabledMods.findIndex((mod) => mod.id === activeModId);
-        if (oldIndex !== -1) {
-          const modToMove = enabledMods[oldIndex];
-          const tempOrderedMods = enabledMods.filter(
-            (_, index) => index !== oldIndex
-          );
-          const newOrderedMods = [...tempOrderedMods, modToMove];
-          await handleEnabledModOrderChange(
-            newOrderedMods,
-            `Move ${activeModId} to end of enabled list`
-          );
-        } else {
-          console.error(
-            `[DND Logic] Case 1B Error: oldIndex not found for ${activeModId}`
-          );
-        }
-      } else if (finalTargetContainerId === 'disabled-mods-column') {
-        // CASO 1C: Spostamento da enabledMods a disabledMods
-        console.log(
-          `[DND Logic] Case 1C: Move from enabled to disabled. Active: ${activeModId}, Target: ${finalTargetContainerId}`
+          `[DND Logic] Move from enabled to disabled. Active: ${activeModId}`
         );
         await handleToggleEnableMod(activeModId, 'enabled');
       } else {
-        console.log(
-          `[DND Logic] Unhandled drop from 'enabled'. Active: ${activeModId}, RawOver: ${rawOverId}, FinalTarget: ${finalTargetContainerId}, IsOverEnabledMod: ${isOverAnEnabledMod}`
-        );
+        await handleReorderWithinEnabled(activeModId, rawOverId);
       }
     } else if (sourceColumnType === 'disabled') {
-      // Il mod proviene dalla colonna DISABILITATI
       if (finalTargetContainerId === 'enabled-mods-column') {
-        // CASO 2A: Spostamento da disabledMods a enabledMods
         console.log(
-          `[DND Logic] Case 2A: Move from disabled to enabled. Active: ${activeModId}, Target: ${finalTargetContainerId}`
+          `[DND Logic] Move from disabled to enabled. Active: ${activeModId}`
         );
         await handleToggleEnableMod(activeModId, 'disabled');
-      } else if (
-        rawOverId === 'disabled-mods-column' &&
-        activeModId !== rawOverId
-      ) {
-        // CASO 2B: Riordino (o drop su se stesso) all'interno di disabled (attualmente non supportato/necessario)
-        // O drop sull'area della colonna disabilitata da cui proviene
-        console.log(
-          `[DND Logic] Case 2B: Mod from disabled dropped on disabled column/mod. Active: ${activeModId}, Over: ${rawOverId}. No action.`
-        );
-      } else {
-        console.log(
-          `[DND Logic] Unhandled drop from 'disabled'. Active: ${activeModId}, RawOver: ${rawOverId}, FinalTarget: ${finalTargetContainerId}`
-        );
       }
-    } else {
-      console.error(
-        `[DND Logic] CRITICAL: Unhandled sourceColumnType: ${sourceColumnType}. Active: ${activeModId}`
-      );
     }
 
-    // Aggiungi animazione di successo dopo il drop
     setTimeout(() => {
-      const targetElement = document.querySelector(`[data-id="${activeModId}"]`);
+      const targetElement = document.querySelector(
+        `[data-id="${activeModId}"]`
+      );
       if (targetElement) {
         targetElement.classList.add('mod-card-drop-animation');
-        setTimeout(() => {
-          targetElement.classList.remove('mod-card-drop-animation');
-        }, 400);
+        setTimeout(
+          () => targetElement.classList.remove('mod-card-drop-animation'),
+          400
+        );
       }
     }, 100);
   };
 
-  // Funzione helper per migliorare il DragOverlay
   const getDragOverlayMod = () => {
     const mod = [...enabledMods, ...disabledMods].find(
       (mod) => mod.id === activeId
@@ -623,7 +511,9 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   };
 
   const getDragOverlayType = () => {
-    return enabledMods.some((mod) => mod.id === activeId) ? 'enabled' : 'disabled';
+    return enabledMods.some((mod) => mod.id === activeId)
+      ? 'enabled'
+      : 'disabled';
   };
 
   // Callback per ModDropzone: ora riceve StagedModInfo[] dal backend via ModDropzone
