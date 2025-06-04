@@ -967,13 +967,17 @@ async function copyDirRecursive(src: string, dest: string): Promise<void> {
 interface PayloadManifest {
   version: string;
   files: {
-    filename: string;
-    url: string;
-    sha256: string;
-    size: number;
-  }[];
-  description?: string;
-  timestamp?: string;
+    [key: string]: {
+      url: string;
+      sha256: string;
+      size: number;
+    };
+  };
+  metadata?: {
+    description?: string;
+    created_at?: string;
+    compatible_versions?: string[];
+  };
 }
 
 /**
@@ -1173,8 +1177,8 @@ ipcMain.handle('install-mod-enabler', async () => {
   );
 
   // GitHub Releases configuration
-  const GITHUB_OWNER = 'NebulaStudioOfficial'; // Replace with actual GitHub username/org
-  const GITHUB_REPO = 'inzoi-mod-manager'; // Replace with actual repository name
+  const GITHUB_OWNER = 'Nebula-Studios';
+  const GITHUB_REPO = 'IMM';
   const MANIFEST_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/manifest.json`;
 
   try {
@@ -1184,67 +1188,55 @@ ipcMain.handle('install-mod-enabler', async () => {
       log.info(`[DownloadOnDemand] Created destination directory: ${destinationDir}`);
     }
 
-    // 2. Check if we have cached payloads and they're still valid
+    // 2. Clear old cache to force fresh download with new structure
     const cacheDir = getPayloadCacheDir();
     const cachedPayloadFile = nodePath.join(cacheDir, 'cached_payload.json');
-    let cachedPayload: CachedPayload | null = null;
     
+    // FORCE CACHE CLEAR: Remove old cached payload to fix structure mismatch
     if (fs.existsSync(cachedPayloadFile)) {
       try {
-        const cachedData = fs.readFileSync(cachedPayloadFile, 'utf-8');
-        cachedPayload = JSON.parse(cachedData);
-        log.info(`[DownloadOnDemand] Found cached payload version: ${cachedPayload?.version}`);
+        fs.unlinkSync(cachedPayloadFile);
+        log.info(`[DownloadOnDemand] Cleared old cached payload to force fresh download`);
       } catch (error) {
-        log.warn(`[DownloadOnDemand] Failed to parse cached payload info:`, error);
-        cachedPayload = null;
+        log.warn(`[DownloadOnDemand] Failed to clear old cache:`, error);
       }
     }
+    
+    // Clear any old cache files
+    if (fs.existsSync(cacheDir)) {
+      try {
+        const cacheFiles = fs.readdirSync(cacheDir);
+        for (const file of cacheFiles) {
+          if (file !== 'cached_payload.json') {
+            const filePath = nodePath.join(cacheDir, file);
+            try {
+              if (fs.statSync(filePath).isFile()) {
+                fs.unlinkSync(filePath);
+                log.info(`[DownloadOnDemand] Cleared old cache file: ${file}`);
+              }
+            } catch (err) {
+              // Ignore errors on individual file cleanup
+            }
+          }
+        }
+      } catch (error) {
+        log.warn(`[DownloadOnDemand] Failed to clear cache directory:`, error);
+      }
+    }
+    
+    let cachedPayload: CachedPayload | null = null; // Force no cache usage
 
     // 3. Fetch the latest manifest from GitHub Releases
     log.info(`[DownloadOnDemand] Fetching latest manifest...`);
     const manifest = await fetchManifest(MANIFEST_URL);
     
-    // 4. Check if we need to download new files
-    let needsDownload = true;
-    if (cachedPayload && cachedPayload.version === manifest.version) {
-      // Check if all cached files still exist and have correct hashes
-      let allFilesValid = true;
-      for (const cachedFile of cachedPayload.files) {
-        if (!fs.existsSync(cachedFile.localPath)) {
-          log.info(`[DownloadOnDemand] Cached file missing: ${cachedFile.localPath}`);
-          allFilesValid = false;
-          break;
-        }
-        
-        // Quick SHA256 verification of cached file
-        try {
-          const crypto = require('crypto');
-          const fileBuffer = fs.readFileSync(cachedFile.localPath);
-          const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex').toLowerCase();
-          if (fileHash !== cachedFile.sha256.toLowerCase()) {
-            log.info(`[DownloadOnDemand] Cached file hash mismatch: ${cachedFile.localPath}`);
-            allFilesValid = false;
-            break;
-          }
-        } catch (error) {
-          log.warn(`[DownloadOnDemand] Error verifying cached file ${cachedFile.localPath}:`, error);
-          allFilesValid = false;
-          break;
-        }
-      }
-      
-      if (allFilesValid) {
-        log.info(`[DownloadOnDemand] All cached files are valid, skipping download`);
-        needsDownload = false;
-      }
-    }
-
-    // 5. Download files if needed
+    // 4. Force download of all files (cache was cleared)
     const downloadId = uuidv4();
     let finalPayloadFiles: { filename: string; localPath: string; sha256: string; }[] = [];
     
-    if (needsDownload) {
-      log.info(`[DownloadOnDemand] Starting download of ${manifest.files.length} file(s)...`);
+    log.info(`[DownloadOnDemand] Cache cleared, forcing fresh download of all files`);
+      const manifestFiles = Object.entries(manifest.files);
+      log.info(`[DownloadOnDemand] Starting download of ${manifestFiles.length} file(s)...`);
       
       // Send progress update to renderer
       win?.webContents.send('mod-enabler-install-progress', {
@@ -1253,28 +1245,68 @@ ipcMain.handle('install-mod-enabler', async () => {
         message: 'Downloading payload files...'
       });
       
-      for (let i = 0; i < manifest.files.length; i++) {
-        const file = manifest.files[i];
-        const tempFileName = `${downloadId}_${file.filename}`;
-        const tempFilePath = nodePath.join(cacheDir, tempFileName);
+      for (let i = 0; i < manifestFiles.length; i++) {
+        const [fileKey, fileInfo] = manifestFiles[i];
         
         // Progress callback for individual file download
         const progressCallback = (fileProgress: number) => {
-          const overallProgress = ((i / manifest.files.length) * 100) + (fileProgress / manifest.files.length);
+          const overallProgress = ((i / manifestFiles.length) * 100) + (fileProgress / manifestFiles.length);
           win?.webContents.send('mod-enabler-install-progress', {
             stage: 'downloading',
             progress: Math.round(overallProgress),
-            message: `Downloading ${file.filename}... (${Math.round(fileProgress)}%)`
+            message: `Downloading ${fileKey}... (${Math.round(fileProgress)}%)`
           });
         };
         
-        await downloadAndVerifyFile(file.url, tempFilePath, file.sha256, progressCallback);
-        
-        finalPayloadFiles.push({
-          filename: file.filename,
-          localPath: tempFilePath,
-          sha256: file.sha256
-        });
+        // For payload files, download the ZIP and extract it
+        if (fileKey === 'payload') {
+          const tempZipPath = nodePath.join(cacheDir, `${downloadId}_payload.zip`);
+          await downloadAndVerifyFile(fileInfo.url, tempZipPath, fileInfo.sha256, progressCallback);
+          
+          // Extract ZIP and add individual files to finalPayloadFiles
+          log.info(`[DownloadOnDemand] Extracting payload ZIP...`);
+          const zip = new AdmZip(tempZipPath);
+          const zipEntries = zip.getEntries();
+          
+          for (const entry of zipEntries) {
+            if (!entry.isDirectory) {
+              const entryData = entry.getData();
+              // Mantieni il percorso completo del file nel ZIP per preservare la struttura delle cartelle
+              const entryFullPath = entry.entryName.replace(/\\/g, '/'); // Normalizza i separatori
+              const entryPath = nodePath.join(cacheDir, `${downloadId}_${entryFullPath.replace(/\//g, '_')}`);
+              
+              // Write extracted file
+              fs.writeFileSync(entryPath, entryData);
+              
+              // Calculate hash for extracted file
+              const crypto = require('crypto');
+              const entryHash = crypto.createHash('sha256').update(entryData).digest('hex');
+              
+              finalPayloadFiles.push({
+                filename: entryFullPath, // Usa il percorso completo invece del solo nome file
+                localPath: entryPath,
+                sha256: entryHash
+              });
+              
+              log.info(`[DownloadOnDemand] Extracted: ${entryFullPath} (${entryData.length} bytes)`);
+            }
+          }
+          
+          // Remove the ZIP file after extraction
+          fs.unlinkSync(tempZipPath);
+        } else {
+          // Handle individual files (if any)
+          const tempFileName = `${downloadId}_${fileKey}`;
+          const tempFilePath = nodePath.join(cacheDir, tempFileName);
+          
+          await downloadAndVerifyFile(fileInfo.url, tempFilePath, fileInfo.sha256, progressCallback);
+          
+          finalPayloadFiles.push({
+            filename: fileKey,
+            localPath: tempFilePath,
+            sha256: fileInfo.sha256
+          });
+        }
       }
       
       // Update cache info
@@ -1286,12 +1318,8 @@ ipcMain.handle('install-mod-enabler', async () => {
       
       fs.writeFileSync(cachedPayloadFile, JSON.stringify(newCachedPayload, null, 2), 'utf-8');
       log.info(`[DownloadOnDemand] Updated cache with version: ${manifest.version}`);
-    } else {
-      // Use cached files
-      finalPayloadFiles = cachedPayload!.files;
-    }
 
-    // 6. Extract and install files
+    // 5. Extract and install files
     win?.webContents.send('mod-enabler-install-progress', {
       stage: 'installing',
       progress: 0,
@@ -1308,8 +1336,15 @@ ipcMain.handle('install-mod-enabler', async () => {
         zip.extractAllTo(destinationDir, true);
         log.info(`[DownloadOnDemand] Successfully extracted ${file.filename} to ${destinationDir}`);
       } else {
-        // Copy individual file
+        // Copy individual file, preservando la struttura delle cartelle
         const destPath = nodePath.join(destinationDir, file.filename);
+        
+        // Crea le cartelle necessarie se non esistono
+        const destDir = nodePath.dirname(destPath);
+        if (!fs.existsSync(destDir)) {
+          fs.mkdirSync(destDir, { recursive: true });
+        }
+        
         fs.copyFileSync(file.localPath, destPath);
         log.info(`[DownloadOnDemand] Copied ${file.filename} to ${destPath}`);
       }
@@ -1332,20 +1367,17 @@ ipcMain.handle('install-mod-enabler', async () => {
     }
 
     // 8. Clean up old temporary files (keep cache for reuse)
-    if (needsDownload) {
-      // Remove any old temporary files that might be from previous downloads
-      const cacheFiles = fs.readdirSync(cacheDir);
-      for (const cacheFile of cacheFiles) {
-        if (cacheFile.includes('_') && !cacheFile.includes(downloadId) && cacheFile !== 'cached_payload.json') {
-          try {
-            const oldTempPath = nodePath.join(cacheDir, cacheFile);
-            if (fs.statSync(oldTempPath).isFile()) {
-              fs.unlinkSync(oldTempPath);
-              log.info(`[DownloadOnDemand] Cleaned up old temp file: ${cacheFile}`);
-            }
-          } catch (error) {
-            log.warn(`[DownloadOnDemand] Failed to clean up old temp file ${cacheFile}:`, error);
+    const cacheFiles = fs.readdirSync(cacheDir);
+    for (const cacheFile of cacheFiles) {
+      if (cacheFile.includes('_') && !cacheFile.includes(downloadId) && cacheFile !== 'cached_payload.json') {
+        try {
+          const oldTempPath = nodePath.join(cacheDir, cacheFile);
+          if (fs.statSync(oldTempPath).isFile()) {
+            fs.unlinkSync(oldTempPath);
+            log.info(`[DownloadOnDemand] Cleaned up old temp file: ${cacheFile}`);
           }
+        } catch (error) {
+          log.warn(`[DownloadOnDemand] Failed to clean up old temp file ${cacheFile}:`, error);
         }
       }
     }
