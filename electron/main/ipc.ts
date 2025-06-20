@@ -24,6 +24,7 @@ import {
   scanDirectoryForPaks,
   ProcessedModInfo,
   findPaksRecursive,
+  findFileRecursive,
 } from './lib/mods.js';
 import { store } from './lib/store.js';
 
@@ -121,27 +122,7 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
     }
 
     const processedModsInfo: ProcessedModInfo[] = [];
-
-    const findPaksRecursive = (dir: string): string[] => {
-      let paks: string[] = [];
-      try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = nodePath.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            paks = paks.concat(findPaksRecursive(fullPath));
-          } else if (
-            entry.isFile() &&
-            nodePath.extname(entry.name).toLowerCase() === '.pak'
-          ) {
-            paks.push(fullPath);
-          }
-        }
-      } catch (error) {
-        log.error(`Error scanning directory ${dir}:`, error);
-      }
-      return paks;
-    };
+    const failedMods: { name: string; reason: string }[] = [];
 
     for (const originalSourcePath of filePaths) {
       if (!originalSourcePath) {
@@ -151,15 +132,15 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
       
       const absolutePath = nodePath.resolve(originalSourcePath);
       const fileExtension = nodePath.extname(absolutePath).toLowerCase();
+      const baseName = nodePath.basename(absolutePath, fileExtension);
+      const sanitizedModName = sanitizeDirectoryName(baseName);
       
       try {
         if (['.zip', '.rar', '.7z'].includes(fileExtension)) {
-          const archiveBaseName = nodePath.basename(absolutePath, fileExtension);
-          const sanitizedModName = sanitizeDirectoryName(archiveBaseName);
           const modFinalStagingDir = nodePath.join(stagingPath, sanitizedModName);
 
           if (fs.existsSync(modFinalStagingDir)) {
-            log.warn(`Mod directory ${sanitizedModName} already exists. Skipping.`);
+            failedMods.push({ name: sanitizedModName, reason: 'Directory already exists.' });
             continue; 
           }
           
@@ -167,8 +148,7 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
           fs.mkdirSync(tempExtractDir, { recursive: true });
 
           if (fileExtension === '.zip') {
-            const fileBuffer = fs.readFileSync(absolutePath);
-            const zip = new AdmZip(fileBuffer);
+            const zip = new AdmZip(absolutePath);
             zip.extractAllTo(tempExtractDir, true);
           } else if (fileExtension === '.rar') {
             const extractor = await createExtractorFromFile({ filepath: absolutePath, targetPath: tempExtractDir });
@@ -178,88 +158,132 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
             await SevenZipLib.extractFull(absolutePath, tempExtractDir);
           }
 
-          // Flatten directory structure if necessary
           const entries = fs.readdirSync(tempExtractDir);
           if (entries.length === 1 && fs.statSync(nodePath.join(tempExtractDir, entries[0])).isDirectory()) {
-            const singleSubdirPath = nodePath.join(tempExtractDir, entries[0]);
-            // Rename the nested directory to be the final directory
-            fs.renameSync(singleSubdirPath, modFinalStagingDir);
-            // Remove the now-empty temporary extraction directory
+            fs.renameSync(nodePath.join(tempExtractDir, entries[0]), modFinalStagingDir);
             fs.rmdirSync(tempExtractDir);
           } else {
-            // If no flattening is needed, rename the temp dir to the final dir
             fs.renameSync(tempExtractDir, modFinalStagingDir);
           }
           
-          const paksInExtractedDir = findPaksRecursive(modFinalStagingDir);
-          if (paksInExtractedDir.length === 0) {
-            log.warn(`No .pak files found in ${archiveBaseName}. The mod may not work correctly.`);
+          const manifestPath = findFileRecursive(modFinalStagingDir, 'mod_manifest.json');
+          if (!manifestPath) {
+            failedMods.push({ name: sanitizedModName, reason: `Manifest 'mod_manifest.json' not found.` });
+            await fsPromises.rm(modFinalStagingDir, { recursive: true, force: true });
+            continue;
           }
-          
-          const primaryPakPath = paksInExtractedDir.length > 0 ? paksInExtractedDir[0] : modFinalStagingDir;
-          const pakDir = paksInExtractedDir.length > 0 ? nodePath.dirname(primaryPakPath) : modFinalStagingDir;
-          const pakBaseName = paksInExtractedDir.length > 0 ? nodePath.basename(primaryPakPath, '.pak') : sanitizedModName;
 
+          // Read and parse the manifest, stripping UTF-8 BOM if present
+          let fileContent = await fsPromises.readFile(manifestPath);
+          if (fileContent[0] === 0xEF && fileContent[1] === 0xBB && fileContent[2] === 0xBF) {
+            fileContent = fileContent.slice(3);
+          }
+          const manifestContent = JSON.parse(fileContent.toString('utf-8'));
+          const displayName = manifestContent.FriendlyName || sanitizedModName;
+          const author = manifestContent.Author;
+          let version = manifestContent.Version;
+          if (typeof version === 'string' && version.endsWith('.W.MODKIT.EGS')) {
+            version = version.replace('.W.MODKIT.EGS', '');
+          }
+
+          const paksInDir = findPaksRecursive(modFinalStagingDir);
+          const primaryPakPath = paksInDir.length > 0 ? paksInDir[0] : modFinalStagingDir;
+          const pakDir = paksInDir.length > 0 ? nodePath.dirname(primaryPakPath) : modFinalStagingDir;
+          const pakFileName = paksInDir.length > 0 ? nodePath.basename(primaryPakPath, '.pak') : sanitizedModName;
+          
           const modInfo: ProcessedModInfo = {
-            name: sanitizedModName,
+            name: displayName,
             pakPath: primaryPakPath,
-            ucasPath: null,
-            utocPath: null,
+            ucasPath: nodePath.join(pakDir, `${pakFileName}.ucas`),
+            utocPath: nodePath.join(pakDir, `${pakFileName}.utoc`),
             originalPath: absolutePath,
+            author,
+            version,
           };
-          
-          const ucasPath = nodePath.join(pakDir, `${pakBaseName}.ucas`);
-          if (fs.existsSync(ucasPath)) modInfo.ucasPath = ucasPath;
-          
-          const utocPath = nodePath.join(pakDir, `${pakBaseName}.utoc`);
-          if (fs.existsSync(utocPath)) modInfo.utocPath = utocPath;
-
+          if (!fs.existsSync(modInfo.ucasPath!)) modInfo.ucasPath = null;
+          if (!fs.existsSync(modInfo.utocPath!)) modInfo.utocPath = null;
           processedModsInfo.push(modInfo);
-
+          
         } else if (fileExtension === '.pak') {
-          const pakBaseName = nodePath.basename(absolutePath, '.pak');
-          const sanitizedModName = sanitizeDirectoryName(pakBaseName);
           const modFinalStagingDir = nodePath.join(stagingPath, sanitizedModName);
 
           if (fs.existsSync(modFinalStagingDir)) {
-            log.warn(`Mod directory ${sanitizedModName} already exists. Skipping.`);
+            failedMods.push({ name: sanitizedModName, reason: 'Directory already exists.' });
             continue;
           }
           fs.mkdirSync(modFinalStagingDir, { recursive: true });
 
-          const sourceDir = nodePath.dirname(absolutePath);
           const destinationPakPath = nodePath.join(modFinalStagingDir, nodePath.basename(absolutePath));
           fs.copyFileSync(absolutePath, destinationPakPath);
           
-          const modInfo: ProcessedModInfo = {
-            name: sanitizedModName,
+          const sourceDir = nodePath.dirname(absolutePath);
+          const pakBaseName = nodePath.basename(absolutePath, '.pak');
+          const ucasSourcePath = nodePath.join(sourceDir, `${pakBaseName}.ucas`);
+          const utocSourcePath = nodePath.join(sourceDir, `${pakBaseName}.utoc`);
+          let ucasDestPath: string | null = null;
+          let utocDestPath: string | null = null;
+
+          if (fs.existsSync(ucasSourcePath)) {
+            ucasDestPath = nodePath.join(modFinalStagingDir, `${pakBaseName}.ucas`);
+            fs.copyFileSync(ucasSourcePath, ucasDestPath);
+          }
+          if (fs.existsSync(utocSourcePath)) {
+            utocDestPath = nodePath.join(modFinalStagingDir, `${pakBaseName}.utoc`);
+            fs.copyFileSync(utocSourcePath, utocDestPath);
+          }
+
+          // In this simple case, we must assume the manifest is dropped alongside the .pak
+           const manifestPath = findFileRecursive(sourceDir, 'mod_manifest.json');
+           if (!manifestPath) {
+            failedMods.push({ name: sanitizedModName, reason: `Manifest 'mod_manifest.json' must be in the same folder as the .pak file.` });
+            await fsPromises.rm(modFinalStagingDir, { recursive: true, force: true });
+            continue;
+          }
+          // We can copy it into the staging dir for consistency
+          fs.copyFileSync(manifestPath, nodePath.join(modFinalStagingDir, 'mod_manifest.json'));
+
+          // Read and parse the manifest, stripping UTF-8 BOM if present
+          let fileContent = await fsPromises.readFile(manifestPath);
+          if (fileContent[0] === 0xEF && fileContent[1] === 0xBB && fileContent[2] === 0xBF) {
+            fileContent = fileContent.slice(3);
+          }
+          const manifestContent = JSON.parse(fileContent.toString('utf-8'));
+          const displayName = manifestContent.FriendlyName || sanitizedModName;
+          const author = manifestContent.Author;
+          let version = manifestContent.Version;
+          if (typeof version === 'string' && version.endsWith('.W.MODKIT.EGS')) {
+            version = version.replace('.W.MODKIT.EGS', '');
+          }
+
+          processedModsInfo.push({
+            name: displayName,
             pakPath: destinationPakPath,
-            ucasPath: null,
-            utocPath: null,
+            ucasPath: ucasDestPath,
+            utocPath: utocDestPath,
             originalPath: absolutePath,
-          };
-
-          const ucasPath = nodePath.join(sourceDir, `${pakBaseName}.ucas`);
-          if (fs.existsSync(ucasPath)) {
-            const destUcas = nodePath.join(modFinalStagingDir, `${pakBaseName}.ucas`);
-            fs.copyFileSync(ucasPath, destUcas);
-            modInfo.ucasPath = destUcas;
-          }
-
-          const utocPath = nodePath.join(sourceDir, `${pakBaseName}.utoc`);
-          if (fs.existsSync(utocPath)) {
-            const destUtoc = nodePath.join(modFinalStagingDir, `${pakBaseName}.utoc`);
-            fs.copyFileSync(utocPath, destUtoc);
-            modInfo.utocPath = destUtoc;
-          }
-          processedModsInfo.push(modInfo);
+            author,
+            version,
+          });
         }
       } catch (err: any) {
-        log.error(`Error processing file ${absolutePath}:`, err);
+        log.error(`Error processing file ${absolutePath}:`, err.message);
+        failedMods.push({ name: sanitizedModName, reason: err.message });
       }
     }
+
+    if (processedModsInfo.length > 0) {
+      const currentDisabledMods = store.get('savedDisabledMods', []);
+      const newModsForStore = processedModsInfo.map(mod => ({
+        id: mod.pakPath,
+        name: mod.name,
+        path: mod.pakPath,
+        author: mod.author,
+        version: mod.version,
+      }));
+      store.set('savedDisabledMods', [...currentDisabledMods, ...newModsForStore]);
+    }
     
-    return { success: true, mods: processedModsInfo };
+    return { success: processedModsInfo.length > 0, mods: processedModsInfo, failedMods };
   });
 
   // --- IPC Handlers for Staging Path ---

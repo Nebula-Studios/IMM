@@ -13,6 +13,8 @@ export interface ModItemForStore {
     path: string;
     activePath?: string | null;
     numericPrefix?: string | null;
+    author?: string;
+    version?: string;
 }
 
 // Function to sanitize a string to be used as a directory name
@@ -48,6 +50,8 @@ export interface ProcessedModInfo {
   ucasPath: string | null;
   utocPath: string | null;
   originalPath: string;
+  author?: string;
+  version?: string;
 }
 
 export interface ProcessDroppedModsResult {
@@ -314,99 +318,84 @@ export async function synchronizeModStatesLogic(): Promise<{
   enabledMods: ModItemForStore[];
   error?: string;
 }> {
-  // ... (implementation moved from index.ts)
   try {
     const stagingPath = getCurrentStagingPath();
     const gameModsPath = await getGameModsPath();
 
-    const storeDisabledMods: ModItemForStore[] = store.get('savedDisabledMods', []);
-    const storeEnabledMods: ModItemForStore[] = store.get('savedEnabledMods', []);
-
-    const actualStagedPaks = await scanDirectoryForPaks(stagingPath, false);
-    const actualGamePaks = await scanDirectoryForPaks(gameModsPath, true);
-
     const finalEnabledMods: ModItemForStore[] = [];
     const finalDisabledMods: ModItemForStore[] = [];
-    const finalEnabledModIds = new Set<string>();
-    const finalDisabledModIds = new Set<string>();
 
-    const stagedPakMapById = new Map<string, ModItemForStore>(actualStagedPaks.map(p => [p.id, p]));
-    const gamePakMapByActivePath = new Map<string, ModItemForStore>();
-    actualGamePaks.forEach(p => {
-        if(p.activePath) {
-            gamePakMapByActivePath.set(p.activePath, p);
-        }
-    });
+    const processModDirectory = async (
+      dirPath: string,
+      isEnabled: boolean
+    ): Promise<ModItemForStore | null> => {
+      const manifestPath = findFileRecursive(dirPath, 'mod_manifest.json');
+      const paks = findPaksRecursive(dirPath);
 
-
-    // Process enabled mods from store
-    for (const storeMod of storeEnabledMods) {
-        const stagedEquivalent = stagedPakMapById.get(storeMod.path);
-        if(!stagedEquivalent) {
-            log.warn(`[Sync] Enabled mod from store not found in staging: ${storeMod.name}. Removing.`);
-            continue;
-        }
-
-        const gameEquivalent = gamePakMapByActivePath.get(storeMod.activePath!);
-
-        if(gameEquivalent) {
-            const modToEnable: ModItemForStore = {
-                ...stagedEquivalent,
-                activePath: gameEquivalent.activePath,
-                numericPrefix: gameEquivalent.numericPrefix,
-            };
-            if(!finalEnabledModIds.has(modToEnable.id)) {
-                finalEnabledMods.push(modToEnable);
-                finalEnabledModIds.add(modToEnable.id);
-            }
-        } else {
-            log.warn(`[Sync] Enabled mod "${storeMod.name}" not found in game files. Moving to disabled.`);
-            if(!finalDisabledModIds.has(stagedEquivalent.id)) {
-                 finalDisabledMods.push(stagedEquivalent);
-                 finalDisabledModIds.add(stagedEquivalent.id);
-            }
-        }
-    }
-
-    // Process disabled mods from store
-    for (const storeMod of storeDisabledMods) {
-        const stagedEquivalent = stagedPakMapById.get(storeMod.path);
-        if(stagedEquivalent && !finalEnabledModIds.has(stagedEquivalent.id) && !finalDisabledModIds.has(stagedEquivalent.id)) {
-            finalDisabledMods.push(stagedEquivalent);
-            finalDisabledModIds.add(stagedEquivalent.id);
-        }
-    }
-
-    // Process mods found in game but not in store (manually added)
-    for (const gamePak of actualGamePaks) {
-        const isAlreadyProcessed = [...finalEnabledMods, ...finalDisabledMods].some(m => 
-            (m.activePath === gamePak.activePath)
+      if (!manifestPath || paks.length === 0) {
+        log.warn(
+          `[Sync] Skipping invalid mod directory ${dirPath}: missing manifest or .pak file.`
         );
+        return null;
+      }
 
-        if(!isAlreadyProcessed) {
-            log.warn(`[Sync] Found active mod in game not in store: ${gamePak.name}. Creating virtual entry.`);
-            const virtualStagingMod: ModItemForStore = {
-                id: gamePak.path,
-                name: gamePak.name,
-                path: gamePak.path, // It has no real staging path
-                activePath: gamePak.activePath,
-                numericPrefix: gamePak.numericPrefix,
-            };
-             if(!finalEnabledModIds.has(virtualStagingMod.id)){
-                finalEnabledMods.push(virtualStagingMod);
-                finalEnabledModIds.add(virtualStagingMod.id);
-            }
+      let fileContent = await fsPromises.readFile(manifestPath);
+      if (fileContent[0] === 0xEF && fileContent[1] === 0xBB && fileContent[2] === 0xBF) {
+        fileContent = fileContent.slice(3);
+      }
+      const manifestContent = JSON.parse(fileContent.toString('utf-8'));
+
+      const baseName = isEnabled
+        ? nodePath.basename(dirPath).substring(4)
+        : nodePath.basename(dirPath);
+
+      const version =
+        manifestContent.Version?.replace('.W.MODKIT.EGS', '') || undefined;
+
+      return {
+        id: paks[0],
+        name: manifestContent.FriendlyName || baseName,
+        path: paks[0],
+        author: manifestContent.Author,
+        version: version,
+        activePath: isEnabled ? dirPath : undefined,
+        numericPrefix: isEnabled
+          ? nodePath.basename(dirPath).substring(0, 3)
+          : undefined,
+      };
+    };
+
+    // Process enabled mods found in the game's mod directory
+    if (fs.existsSync(gameModsPath)) {
+      for (const dir of fs.readdirSync(gameModsPath)) {
+        const fullPath = nodePath.join(gameModsPath, dir);
+        if (/^\\d{3}_/.test(dir) && fs.statSync(fullPath).isDirectory()) {
+          const modItem = await processModDirectory(fullPath, true);
+          if (modItem) finalEnabledMods.push(modItem);
         }
+      }
     }
-    
-    // Process mods in staging but not in any list
-    for (const stagedPak of actualStagedPaks) {
-        if(!finalEnabledModIds.has(stagedPak.id) && !finalDisabledModIds.has(stagedPak.id)){
-            log.info(`[Sync] New mod found in staging: ${stagedPak.name}. Adding to disabled.`);
-            finalDisabledMods.push(stagedPak);
-            finalDisabledModIds.add(stagedPak.id);
+
+    // Process disabled mods from the staging directory
+    const enabledDirBaseNames = new Set(
+      finalEnabledMods.map((m) => nodePath.basename(m.activePath!).substring(4))
+    );
+
+    if (fs.existsSync(stagingPath)) {
+      for (const dir of fs.readdirSync(stagingPath)) {
+        const fullPath = nodePath.join(stagingPath, dir);
+        if (fs.statSync(fullPath).isDirectory()) {
+          if (!enabledDirBaseNames.has(dir)) {
+            const modItem = await processModDirectory(fullPath, false);
+            if (modItem) finalDisabledMods.push(modItem);
+          }
         }
+      }
     }
+
+    // The store is now treated as a cache of the last known valid state
+    store.set('savedEnabledMods', finalEnabledMods);
+    store.set('savedDisabledMods', finalDisabledMods);
 
     return {
       success: true,
@@ -414,7 +403,7 @@ export async function synchronizeModStatesLogic(): Promise<{
       enabledMods: finalEnabledMods,
     };
   } catch (error: any) {
-    log.error('[synchronizeModStatesLogic] Error during mod state synchronization:', error);
+    log.error('Error during mod state synchronization:', error);
     return {
       success: false,
       error: error.message,
@@ -440,4 +429,34 @@ export function findPaksRecursive(dir: string): string[] {
     log.error(`Error reading directory ${dir}:`, error);
   }
   return paks;
+}
+
+/**
+ * Recursively finds the first occurrence of a file in a directory.
+ * @param dir The directory to start searching from.
+ * @param fileName The name of the file to find (case-insensitive).
+ * @returns The full path to the file if found, otherwise null.
+ */
+export function findFileRecursive(
+  dir: string,
+  fileName: string
+): string | null {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = nodePath.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const found = findFileRecursive(fullPath, fileName);
+        if (found) return found;
+      } else if (
+        entry.isFile() &&
+        entry.name.toLowerCase() === fileName.toLowerCase()
+      ) {
+        return fullPath;
+      }
+    }
+  } catch (error) {
+    log.error(`Error scanning directory ${dir}:`, error);
+  }
+  return null;
 }

@@ -15,6 +15,8 @@ import {
   FileEdit,
   Trash2,
   GripVertical,
+  User,
+  GitCommit,
 } from 'lucide-react';
 import { ModItem } from '@/types/common.ts';
 
@@ -181,10 +183,27 @@ const ModCard: React.FC<ModCardProps> = ({
             </span>
 
             <div className="flex flex-col flex-grow truncate">
-              <p className={getModNameClasses()} title={mod.name}>
-                {mod.name}
-              </p>
-              <span className={getStatusBadgeClasses()}>.pak</span>
+              <div className="flex-1 min-w-0">
+                <p
+                  className={`text-base font-bold truncate ${isEnabled ? 'text-green-300' : 'text-slate-200'}`}
+                >
+                  {mod.name}
+                </p>
+                <div className="flex items-center space-x-3 mt-1.5 text-xs text-neutral-400">
+                  {mod.author && (
+                    <div className="flex items-center">
+                      <User className="h-3 w-3 mr-1.5" />
+                      <span className="truncate">{mod.author}</span>
+                    </div>
+                  )}
+                  {mod.version && (
+                    <div className="flex items-center">
+                      <GitCommit className="h-3 w-3 mr-1.5" />
+                      <span>v{mod.version}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

@@ -4,6 +4,8 @@ export interface ModItem {
   path: string;
   activePath?: string;
   numericPrefix?: string;
+  author?: string;
+  version?: string;
 }
 
 export interface StagedModInfo {
@@ -12,4 +14,6 @@ export interface StagedModInfo {
   ucasPath: string | null;
   utocPath: string | null;
   originalPath: string;
+  author?: string;
+  version?: string;
 } 

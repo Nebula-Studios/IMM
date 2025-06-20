@@ -96,6 +96,7 @@ export interface IElectronAPI {
   processDroppedModPaths: (filePaths: string[]) => Promise<{
     success: boolean;
     mods?: StagedModInfo[];
+    failedMods?: { name: string; reason: string }[];
     error?: string;
   }>;
 

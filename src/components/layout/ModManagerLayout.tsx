@@ -74,6 +74,8 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           id: modInfo.pakPath,
           name: modInfo.name,
           path: modInfo.pakPath,
+          author: modInfo.author,
+          version: modInfo.version,
         }));
 
       if (newMods.length > 0) {
@@ -124,17 +126,29 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         const result =
           await window.electronAPI.processDroppedModPaths(filePaths);
 
-        if (result.success && result.mods) {
+        // Handle successful mods
+        if (result.success && result.mods && result.mods.length > 0) {
           const modCount = result.mods.length;
           toast.success(
             `${modCount} mod(s) processed and staged successfully!`
           );
           handleModsProcessedAndStagedCallback(result.mods);
-        } else {
-          const errorMessage =
-            result.error || 'An unknown error occurred in the backend.';
+        }
+
+        // Handle failed mods
+        if (result.failedMods && result.failedMods.length > 0) {
+          result.failedMods.forEach((failure) => {
+            toast.error(`Failed to process mod: ${failure.name}`, {
+              description: failure.reason,
+              duration: 10000,
+            });
+          });
+        }
+
+        // Handle general backend error
+        if (!result.success && result.error) {
           toast.error('Failed to process mods.', {
-            description: errorMessage,
+            description: result.error,
           });
         }
       } catch (error: any) {

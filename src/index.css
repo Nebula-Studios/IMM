@@ -280,18 +280,12 @@ html {
 /* Effetti di hover migliorati */
 .mod-card:hover .drag-handle {
   background-color: rgba(255, 255, 255, 0.15);
-  transform: scale(1.1);
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
 .mod-card:active {
   filter: brightness(0.95);
   transform: translateY(1px) scale(0.98);
-}
-
-.mod-card:hover {
-  transform: translateY(-2px);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Transizioni fluide per tutti gli elementi delle card */
@@ -307,7 +301,6 @@ html {
 }
 
 .drag-handle:hover {
-  transform: scale(1.1);
   cursor: grab;
 }
 
