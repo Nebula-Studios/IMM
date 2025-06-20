@@ -1,18 +1,12 @@
-import { ModItem } from '@/components/mod-management/ModCard.tsx';
-import { ipcRenderer, contextBridge, webUtils } from 'electron';
-import type { IpcRendererEvent } from 'electron'; // Import type for listener
+import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
+import { ModItem } from '../../src/types/common.js';
+import { ModItemForStore } from '../main/lib/mods.js';
 
 // --------- Expose specific APIs to the Renderer process ---------
-contextBridge.exposeInMainWorld('electronAPI', {
+export const electronAPI = {
   // Logging function that sends to main process
-  sendToMainLog: (level: string, message: string, ...args: unknown[]) => {
-    ipcRenderer.send('log-from-renderer', level, message, ...args);
-  },
-
-  // Utility per ottenere il path assoluto del file
-  getFilePath: (file: File): string => {
-    return webUtils.getPathForFile(file);
-  },
+  sendToMainLog: (level: string, message: string, ...args: unknown[]) =>
+    ipcRenderer.send('log-from-renderer', level, message, ...args),
 
   // Store/config functions
   getGameFolderPath: (): Promise<string | undefined> =>
@@ -39,17 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }> => ipcRenderer.invoke('check-mod-enabler-status'),
 
   // Shell operations
-  openExternalLink: (url: string): Promise<void> => {
-    // Qui potremmo aggiungere controlli di sicurezza sull'URL se necessario,
-    // per esempio, per assicurarsi che sia un URL http/https
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return ipcRenderer.invoke('open-external-link', url);
-    }
-    // Rifiuta se l'URL non è http o https
-    return Promise.reject(
-      new Error('URL non valido. Sono permessi solo link http/https.')
-    );
-  },
+  openExternalLink: (url: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('open-external-link', url),
 
   // Update related IPC invocations
   checkUpdate: () => ipcRenderer.invoke('check-update'),
@@ -64,8 +49,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearModStagingPath: () => ipcRenderer.invoke('clear-mod-staging-path'),
 
   // --- Process Dropped Mods Function ---
-  processDroppedMods: (filePaths: string[]) =>
-    ipcRenderer.invoke('process-dropped-mods', filePaths),
+  processDroppedMods: (files: File[]) => {
+    // Use webUtils in the preload script to get the correct absolute paths
+    const filePaths = files.map(file => webUtils.getPathForFile(file));
+    return ipcRenderer.invoke('process-dropped-mods', filePaths);
+  },
 
   // --- Install Mod Enabler Function ---
   installModEnabler: (): Promise<{ success: boolean; error?: string }> =>
@@ -75,30 +63,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enableMod: (
     modPath: string,
     modName: string
-  ): Promise<{ success: boolean; newPath?: string; error?: string }> =>
+  ): Promise<{ success: boolean; activePath?: string; numericPrefix?: string; error?: string }> =>
     ipcRenderer.invoke('enable-mod', modPath, modName),
   disableMod: (
-    modName: string // Assuming modName is sufficient to find it in the game's mod folder
+    modToDisable: ModItemForStore
   ): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('disable-mod', modName),
+    ipcRenderer.invoke('disable-mod', modToDisable),
 
   // --- Save/Load Mod Lists ---
   loadModLists: (): Promise<{
     success: boolean;
-    disabledMods?: any[]; // Sostituire any[] con ModItem[] una volta definito/importato globalmente
-    enabledMods?: any[]; // Sostituire any[] con ModItem[]
+    disabledMods?: ModItem[];
+    enabledMods?: ModItem[];
     error?: string;
   }> => ipcRenderer.invoke('load-mod-lists'),
   saveModLists: (modLists: {
-    disabledMods: any[]; // Sostituire any[] con ModItem[]
-    enabledMods: any[]; // Sostituire any[] con ModItem[]
+    disabledMods: ModItem[];
+    enabledMods: ModItem[];
   }): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('save-mod-lists', modLists),
 
   // --- Scan Staging Directory ---
   scanStagingDirectory: (): Promise<{
     success: boolean;
-    mods?: ModItem[]; // Sostituire con ModItem[]
+    mods?: ModItem[];
     error?: string;
   }> => ipcRenderer.invoke('scan-staging-directory'),
 
@@ -107,12 +95,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('get-current-staging-path-dev'),
 
   // --- Synchronize Mod States ---
-  syncModStates: (): Promise<{
-    success: boolean;
-    disabledMods?: ModItem[]; // Assumendo che ModItem sia il tipo corretto qui
-    enabledMods?: ModItem[];
-    error?: string;
-  }> => ipcRenderer.invoke('sync-mod-states'),
+  syncModStates: () => ipcRenderer.invoke('sync-mod-states'),
 
   // --- Update Mod Order ---
   updateModOrder: (
@@ -129,12 +112,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     newModPath?: string;
     newModName?: string;
     error?: string;
-  }> =>
-    ipcRenderer.invoke(
-      'rename-mod-staging-directory',
-      oldModPakPath,
-      newModNameRaw
-    ),
+  }> => ipcRenderer.invoke('rename-mod-staging-directory', oldModPakPath, newModNameRaw),
 
   // --- Refresh Mod List ---
   refreshModList: (): Promise<{
@@ -220,7 +198,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pid?: number;
     error?: string;
   }> => ipcRenderer.invoke('launch-game'),
-});
+
+  onUpdateStatus: (callback: (status: any) => void) => {
+    ipcRenderer.on('update-status', (_event, status) => callback(status));
+  },
+  deleteMod: (mod: ModItem) => ipcRenderer.invoke('delete-mod', mod),
+};
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 
 // --------- Preload scripts loading ---------
 function domReady(

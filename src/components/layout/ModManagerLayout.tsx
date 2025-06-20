@@ -13,10 +13,12 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { useDropzone } from 'react-dropzone';
 
 import ModList from '../mod-management/ModList.tsx';
-import ModCard, { ModItem } from '../mod-management/ModCard.tsx';
-import ModDropzone, { StagedModInfo } from '../mod-management/ModDropzone.tsx';
+import ModCard from '../mod-management/ModCard.tsx';
+import { ModItem } from '../../types/common.ts';
+import { StagedModInfo } from '../../types/common.ts';
 import { profileService } from '../../services/profileService.ts';
 import {
   Dialog,
@@ -35,26 +37,15 @@ interface ModManagerLayoutProps {
   exposeRefreshFunction?: (refreshFn: () => Promise<void>) => void;
 }
 
-const MIN_ANIMATION_TIME = 500;
-const RESIZER_MIN_WIDTH = 30;
-const RESIZER_MAX_WIDTH = 70;
+const SUPPORTED_EXTENSIONS_TEXT = '.pak, .zip, .rar, .7z';
 
 const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   exposeRefreshFunction,
 }) => {
   const { t } = useTranslation();
 
-  // Layout state
-  const [leftPanelWidth, setLeftPanelWidth] = useState(50);
-  const [isResizing, setIsResizing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Drag and drop state
+  // DND between lists state
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
-  const [isDraggingOverDisabledColumn, setIsDraggingOverDisabledColumn] =
-    useState(false);
-  const [isDraggingOverEnabledColumn, setIsDraggingOverEnabledColumn] =
-    useState(false);
 
   // Mod lists state
   const [disabledMods, setDisabledMods] = useState<ModItem[]>([]);
@@ -65,8 +56,97 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   const [modToRename, setModToRename] = useState<ModItem | null>(null);
   const [newModName, setNewModName] = useState('');
 
+  // Delete dialog state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [modToDelete, setModToDelete] = useState<ModItem | null>(null);
+
   // Loading state
   const initialLoadDone = useRef(false);
+
+  // Callback for file dropzone
+  const handleModsProcessedAndStagedCallback = useCallback(
+    (stagedMods: StagedModInfo[]) => {
+      console.log('[ModManagerLayout] Staged mod info received:', stagedMods);
+
+      const newMods: ModItem[] = stagedMods
+        .filter((modInfo) => modInfo.pakPath && modInfo.pakPath.trim() !== '')
+        .map((modInfo) => ({
+          id: modInfo.pakPath,
+          name: modInfo.name,
+          path: modInfo.pakPath,
+        }));
+
+      if (newMods.length > 0) {
+        setDisabledMods((prevDisabledMods) => {
+          const currentIds = new Set(prevDisabledMods.map((mod) => mod.id));
+          const trulyNewMods = newMods.filter(
+            (newMod) => !currentIds.has(newMod.id)
+          );
+          if (trulyNewMods.length > 0) {
+            return [...prevDisabledMods, ...trulyNewMods];
+          }
+          return prevDisabledMods;
+        });
+      }
+    },
+    []
+  );
+
+  // Dropzone logic for new files
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      console.log('Dropzone onDrop triggered', {
+        acceptedFilesCount: acceptedFiles.length,
+      });
+
+      if (acceptedFiles.length === 0) {
+        toast.info('No supported files were dropped.');
+        return;
+      }
+
+      // Send the raw File objects. The main process is responsible for getting the path.
+      try {
+        const result =
+          await window.electronAPI.processDroppedMods(acceptedFiles);
+
+        if (result.success && result.mods) {
+          const modCount = result.mods.length;
+          toast.success(
+            `${modCount} mod(s) processed and staged successfully!`
+          );
+          handleModsProcessedAndStagedCallback(result.mods);
+        } else {
+          const errorMessage =
+            result.error || 'An unknown error occurred in the backend.';
+          toast.error('Failed to process mods.', {
+            description: errorMessage,
+          });
+        }
+      } catch (error: any) {
+        const errorMessage =
+          error.message || 'An unknown communication error occurred.';
+        toast.error('Error sending mods to backend.', {
+          description: errorMessage,
+        });
+      }
+    },
+    [handleModsProcessedAndStagedCallback]
+  );
+
+  const {
+    getRootProps: getDropzoneRootProps,
+    getInputProps: getDropzoneInputProps,
+    isDragActive: isFileDragActive,
+  } = useDropzone({
+    onDrop,
+    noClick: true,
+    noKeyboard: true,
+  });
+
+  // Layout and DND logic
+  const [leftPanelWidth, setLeftPanelWidth] = useState(50);
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const enableMod = async (modToEnable: ModItem) => {
     console.log(
@@ -82,10 +162,10 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         stagingDirectoryName
       );
 
-      if (result.success && result.newPath) {
+      if (result.success && result.activePath) {
         const enabledModItem: ModItem = {
           ...modToEnable,
-          activePath: result.newPath,
+          activePath: result.activePath,
           numericPrefix: result.numericPrefix,
         };
 
@@ -94,7 +174,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
           prev.filter((mod) => mod.id !== modToEnable.id)
         );
         toast.success(
-          `Mod "${modToEnable.name}" enabled via context menu. Active path: ${result.newPath}`
+          `Mod "${modToEnable.name}" enabled via context menu. Active path: ${result.activePath}`
         );
         await profileService.updateActiveProfileModConfigurationIfNeeded();
       } else {
@@ -310,16 +390,38 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
   };
 
   const handleRemoveMod = (modId: string, modName: string) => {
-    console.log(
-      `[ContextMenu] Remove requested for mod: ${modName} (ID: ${modId})`
-    );
-    toast.info(
-      `Remove functionality for "${modName}" is not yet implemented.`,
-      {
-        description:
-          'This feature will be available in a future update (Phase 2.5).',
+    const mod =
+      enabledMods.find((m) => m.id === modId) ||
+      disabledMods.find((m) => m.id === modId);
+    if (mod) {
+      setModToDelete(mod);
+      setIsDeleteDialogOpen(true);
+    } else {
+      toast.error(`Could not find mod to delete.`);
+    }
+  };
+
+  const confirmDeleteMod = async () => {
+    if (!modToDelete) return;
+
+    try {
+      const result = await window.electronAPI.deleteMod(modToDelete);
+
+      if (result.success) {
+        toast.success(`Mod "${modToDelete.name}" was successfully deleted.`);
+        // Optimistically remove from state
+        setEnabledMods((prev) => prev.filter((m) => m.id !== modToDelete.id));
+        setDisabledMods((prev) => prev.filter((m) => m.id !== modToDelete.id));
+        await profileService.updateActiveProfileModConfigurationIfNeeded();
+      } else {
+        toast.error(`Failed to delete mod: ${result.error}`);
       }
-    );
+    } catch (error: any) {
+      toast.error(`An error occurred while deleting the mod: ${error.message}`);
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setModToDelete(null);
+    }
   };
 
   const handleEnabledModOrderChange = async (
@@ -516,107 +618,6 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       : 'disabled';
   };
 
-  // Callback per ModDropzone: ora riceve StagedModInfo[] dal backend via ModDropzone
-  const handleModsProcessedAndStagedCallback = useCallback(
-    (stagedMods: StagedModInfo[]) => {
-      console.log(
-        '[ModManagerLayout] Staged mod info received from ModDropzone:',
-        stagedMods
-      );
-      setIsDraggingOverDisabledColumn(false); // Resetta lo stato di dragging dopo il drop
-
-      const newMods: ModItem[] = stagedMods
-        // Filtra per assicurarsi che pakPath esista (dovrebbe sempre esserci se success è true da processDroppedMods)
-        .filter((modInfo) => modInfo.pakPath && modInfo.pakPath.trim() !== '')
-        .map((modInfo) => ({
-          id: modInfo.pakPath, // USA IL PATH NELLA STAGING COME ID
-          name: modInfo.name, // Nome base del mod (es. MyMod)
-          path: modInfo.pakPath, // USA IL PATH NELLA STAGING COME PATH PRINCIPALE DEL MOD
-          // originalPath: modInfo.originalPath, // Potremmo salvarlo se utile per debug o future features
-        }));
-
-      if (newMods.length > 0) {
-        setDisabledMods((prevDisabledMods) => {
-          const currentIds = new Set(prevDisabledMods.map((mod) => mod.id));
-          // Filtra per evitare di aggiungere duplicati se per qualche motivo la callback viene chiamata più volte
-          // con gli stessi mod (anche se ModDropzone dovrebbe prevenire chiamate multiple per lo stesso drop)
-          const trulyNewMods = newMods.filter(
-            (newMod) => !currentIds.has(newMod.id)
-          );
-          if (trulyNewMods.length > 0) {
-            // Non mostriamo un toast qui perché ModDropzone lo fa già in modo più granulare
-            // toast.success(`${trulyNewMods.length} new mod(s) added to the list.`);
-            return [...prevDisabledMods, ...trulyNewMods];
-          }
-          return prevDisabledMods;
-        });
-      }
-    },
-    []
-  );
-
-  const existingModPaths = React.useMemo(() => {
-    const disabledPaths = disabledMods
-      .map((mod) => mod.path)
-      .filter((path) => path) as string[];
-    const enabledPaths = enabledMods
-      .map((mod) => mod.path)
-      .filter((path) => path) as string[];
-    return [...disabledPaths, ...enabledPaths];
-  }, [disabledMods, enabledMods]);
-
-  // Event handlers per la colonna Disabled Mods (per il drop di *nuovi file*)
-  // Questi rimangono per la funzionalità di ModDropzone, non per il drag tra colonne.
-  const handleDragEnterDisabledColumnForFileDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.dataTransfer.types.includes('Files')) {
-        setIsDraggingOverDisabledColumn(true); // Attiva l'overlay di ModDropzone
-      }
-    },
-    []
-  );
-
-  const handleDragLeaveDisabledColumnForFileDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.currentTarget.contains(e.relatedTarget as Node)) {
-        return;
-      }
-      setIsDraggingOverDisabledColumn(false); // Disattiva l'overlay di ModDropzone
-    },
-    []
-  );
-
-  const handleDropOnDisabledColumnForFileDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      // Questo evento è gestito da ModDropzone che è sovrapposto quando isDraggingOverDisabledColumn è true.
-      // Se per qualche motivo il drop avviene qui e non su ModDropzone, preveniamo errori.
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDraggingOverDisabledColumn(false);
-      console.log(
-        '[ModManagerLayout] Drop for new files on disabled column area.'
-      );
-      // La logica effettiva è in ModDropzone.tsx e nel suo useEffect per 'drop'
-    },
-    []
-  );
-
-  const handleDragOverDisabledColumnForFileDrop = (
-    event: React.DragEvent<HTMLDivElement>
-  ) => {
-    event.preventDefault(); // Necessario per permettere il drop di file
-    event.stopPropagation();
-    if (event.dataTransfer.types.includes('Files')) {
-      // Opzionale: effetto visivo se necessario, ma ModDropzone lo gestisce
-    } else {
-      // Se non sono file, non è per ModDropzone, quindi non fare nulla qui per evitare conflitti con dnd-kit
-    }
-  };
-
   // Gestione del ridimensionamento (invariata)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsResizing(true);
@@ -777,53 +778,65 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
       <div className={`flex flex-col h-full text-white`}>
         <div className="flex flex-col flex-1 px-4 py-4 overflow-hidden">
           <div ref={containerRef} className="flex flex-1 h-full space-x-1">
-            {/* Colonna Mod Disabilitati */}
+            {/* Colonna Mod Disabilitati - Ora è anche la Dropzone */}
             <div
+              {...getDropzoneRootProps()}
               style={{ width: `${leftPanelWidth}%` }}
-              className="h-full flex flex-col relative bg-neutral-900/60 p-3 md:p-4 rounded-lg shadow-lg border border-neutral-700"
-              // Handler per il drop di *nuovi file* (ModDropzone)
-              onDragEnter={handleDragEnterDisabledColumnForFileDrop}
-              onDragOver={handleDragOverDisabledColumnForFileDrop} // Deve permettere il drag over per il drop di file
-              onDragLeave={handleDragLeaveDisabledColumnForFileDrop}
-              onDrop={handleDropOnDisabledColumnForFileDrop} // Gestito da ModDropzone quando overlay è attivo
+              className="h-full flex flex-col relative bg-neutral-900/60 p-3 md:p-4 rounded-lg shadow-inner"
             >
+              <input {...getDropzoneInputProps()} />
+
+              {/* Overlay per il trascinamento di file esterni */}
+              {isFileDragActive && (
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-green-900/80 backdrop-blur-sm rounded-xl border-2 border-dashed border-green-400">
+                  <div className="text-center">
+                    <svg
+                      className="mx-auto h-12 w-12 text-green-300"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 11v6m0 0l-3-3m3 3l3-3"
+                      />
+                    </svg>
+                    <h3 className="mt-2 text-lg font-medium text-slate-50">
+                      {t('modManager.dropFilesTitle')}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-300">
+                      {t('modManager.dropFilesSubtitle', {
+                        extensions: SUPPORTED_EXTENSIONS_TEXT,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Header */}
               <h2 className="text-lg md:text-xl font-semibold mb-3 text-slate-200 border-b border-neutral-700 pb-2 select-none">
                 {t('modManager.disabledModsTitle')}
               </h2>
-              <div className="overflow-y-auto flex-grow pr-1 min-h-0">
-                {' '}
-                {/* Aggiunto min-h-0 per flexbox */}
+
+              <div className="flex-1 overflow-y-auto min-h-0 pr-2">
                 <ModList
                   title={t('modManager.disabledModsTitle')}
                   mods={disabledMods}
                   type="disabled"
-                  droppableId="disabled-mods-column" // ID per dnd-kit
+                  droppableId="disabled-mods"
                   onToggleEnable={handleToggleEnableMod}
                   onRename={handleRenameMod}
                   onRemove={handleRemoveMod}
                 />
               </div>
-
-              {/* Dropzone Overlay per l'aggiunta di *nuovi file* */}
-              {isDraggingOverDisabledColumn && (
-                <div
-                  className="absolute inset-0 bg-neutral-900/70 flex items-center justify-center z-10"
-                  onDragLeave={(e) => {
-                    // Simile a handleDragLeaveDisabled, per evitare che scompaia se ci si muove su elementi figli dell'overlay
-                    if (e.currentTarget.contains(e.relatedTarget as Node)) {
-                      return;
-                    }
-                    setIsDraggingOverDisabledColumn(false);
-                  }}
-                >
-                  <ModDropzone
-                    onModsProcessedAndStaged={
-                      handleModsProcessedAndStagedCallback
-                    }
-                    // existingModPaths={existingModPaths} // Non più necessario
-                  />
-                </div>
-              )}
             </div>
 
             {/* Resizer */}
@@ -945,6 +958,31 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
             </DialogContent>
           </Dialog>
         )}
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('modManager.deleteDialog.title')}</DialogTitle>
+              <DialogDescription>
+                {t('modManager.deleteDialog.description', {
+                  modName: modToDelete?.name || '',
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                color="neutral"
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button color="danger" variant="default" onClick={confirmDeleteMod}>
+                {t('common.delete')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DndContext>
   );

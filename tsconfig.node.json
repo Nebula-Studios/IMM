@@ -1,10 +1,19 @@
 {
   "compilerOptions": {
+    // This comment is to force a reload of the TS server
     "composite": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
   },
-  "include": ["vite.config.ts", "package.json"]
+  "include": ["vite.config.ts", "electron", "src/types"]
 }

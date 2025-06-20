@@ -20,6 +20,12 @@
     "disabledModsTitle": "Disabled Mods",
     "enabledModsTitle": "Enabled Mods",
     "sortModsTooltip": "Sort Mods (Coming Soon)",
+    "dropFilesTitle": "Drop files to import",
+    "dropFilesSubtitle": "Supported files: {extensions}",
+    "deleteDialog": {
+      "title": "Delete Mod",
+      "description": "Are you sure you want to permanently delete the mod \"{{modName}}\"? This action cannot be undone."
+    },
     "renameDialog": {
       "title": "Rename Mod",
       "description": "Enter a new name for the mod \"{modName}\".",

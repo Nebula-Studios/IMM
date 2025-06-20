@@ -5,7 +5,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import ModCard, { ModItem } from './ModCard.tsx';
+import ModCard from './ModCard.tsx';
+import { ModItem } from '../../types/common.ts';
 
 interface ModListProps {
   title: string;

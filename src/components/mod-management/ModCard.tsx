@@ -16,14 +16,7 @@ import {
   Trash2,
   GripVertical,
 } from 'lucide-react';
-
-export interface ModItem {
-  id: string;
-  name: string;
-  path: string;
-  activePath?: string;
-  numericPrefix?: string;
-}
+import { ModItem } from '@/types/common.ts';
 
 interface ModCardProps {
   mod: ModItem;

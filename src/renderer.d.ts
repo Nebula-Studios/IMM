@@ -1,5 +1,5 @@
-import type { ModItem } from '@/components/mod-management/ModCard';
 import type { StagedModInfo } from '@/components/mod-management/ModDropzone';
+import { ModItem } from './types/common';
 
 // Definizione temporanea se non esiste globalmente
 interface StagingPathConfig {
@@ -59,7 +59,7 @@ export interface IElectronAPI {
     modName: string
   ) => Promise<{
     success: boolean;
-    newPath?: string;
+    activePath?: string;
     numericPrefix?: string;
     error?: string;
   }>;
@@ -103,7 +103,7 @@ export interface IElectronAPI {
   }>;
 
   // --- Process Dropped Mods Function ---
-  processDroppedMods: (filePaths: string[]) => Promise<{
+  processDroppedMods: (files: File[]) => Promise<{
     success: boolean;
     mods?: StagedModInfo[];
     error?: string;
@@ -192,6 +192,10 @@ export interface IElectronAPI {
     pid?: number;
     error?: string;
   }>;
+
+  getAppVersion: () => Promise<string>;
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => void;
+  deleteMod: (mod: ModItem) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {
