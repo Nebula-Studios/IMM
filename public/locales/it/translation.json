@@ -117,37 +117,6 @@
       "loadFailed": "Oops! Abbiamo avuto problemi a caricare il tuo profilo. Errore: {{error}}. Prova a selezionarlo di nuovo."
     }
   },
-  "modEnabler": {
-    "installing": "Installazione del Mod Enabler...",
-    "downloading": "Scaricamento dei file richiesti...",
-    "downloadProgress": "Avanzamento download: {{percent}}%",
-    "extracting": "Estrazione dei file...",
-    "verifying": "Verifica dell'integrità dei file...",
-    "installSuccess": "Mod Enabler installato con successo!",
-    "installFailed": "Installazione del Mod Enabler fallita",
-    "downloadFailed": "Scaricamento fallito: {{error}}",
-    "extractFailed": "Estrazione fallita: {{error}}",
-    "verificationFailed": "Verifica di integrità fallita per {{file}}",
-    "networkError": "Errore di connessione di rete. Controlla la tua connessione internet.",
-    "manifestError": "Errore nel caricamento del manifest dei file",
-    "cacheCleared": "Cache del Mod Enabler svuotata con successo",
-    "retrying": "Nuovo tentativo... ({{attempt}}/{{maxAttempts}})",
-    "timeout": "Timeout durante lo scaricamento. Riprova più tardi.",
-    "githubError": "Errore di accesso a GitHub Releases",
-    "checksumMismatch": "Checksum non corrispondente per {{file}}. Il file potrebbe essere corrotto.",
-    "cachingFiles": "Memorizzazione dei file nella cache...",
-    "usingCache": "Utilizzo dei file dalla cache...",
-    "downloadComplete": "Scaricamento completato per {{file}}",
-    "installationSteps": {
-      "fetchingManifest": "Recupero informazioni sui file...",
-      "downloadingFiles": "Scaricamento file {{current}}/{{total}}...",
-      "verifyingFiles": "Verifica file {{current}}/{{total}}...",
-      "extractingArchive": "Estrazione archivio...",
-      "installingFiles": "Installazione dei file nel gioco...",
-      "cleanup": "Pulizia dei file temporanei...",
-      "complete": "Installazione completata!"
-    }
-  },
   "settings": {
     "gamePathToastTitle": "Percorso Cartella di Gioco",
     "gamePathNotSetToastDescription": "Il percorso della cartella di gioco non è ancora stato impostato.",

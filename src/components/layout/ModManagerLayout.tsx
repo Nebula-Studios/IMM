@@ -104,10 +104,25 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
         return;
       }
 
-      // Send the raw File objects. The main process is responsible for getting the path.
+      // Use the preload function to get paths securely for each file.
+      const filePaths = acceptedFiles
+        .map((file) => window.electronAPI.getPathForFile(file))
+        .filter((path): path is string => !!path); // Filter out null/undefined paths
+
+      if (filePaths.length === 0) {
+        toast.error(
+          'Could not determine the path for any of the dropped files.',
+          {
+            description:
+              'If the files are on a network drive, please move them to a local disk and try again.',
+          }
+        );
+        return;
+      }
+
       try {
         const result =
-          await window.electronAPI.processDroppedMods(acceptedFiles);
+          await window.electronAPI.processDroppedModPaths(filePaths);
 
         if (result.success && result.mods) {
           const modCount = result.mods.length;
@@ -133,6 +148,37 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
     [handleModsProcessedAndStagedCallback]
   );
 
+  const getFilesFromEvent = useCallback(async (event: any) => {
+    // This function is the key to getting reliable file paths in Electron.
+    // It intercepts the raw drop event and extracts the files from dataTransfer.
+    const items = event.dataTransfer.items;
+    const files: File[] = [];
+
+    if (items && items.length) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+          // Using a Promise-based approach to handle webkitGetAsEntry's async nature
+          const file = await new Promise<File | null>((resolve) => {
+            if (entry.isFile) {
+              (entry as FileSystemFileEntry).file(
+                (f) => resolve(f),
+                () => resolve(null)
+              );
+            } else {
+              resolve(null); // Ignore directories for now
+            }
+          });
+          if (file) {
+            files.push(file);
+          }
+        }
+      }
+    }
+    return files;
+  }, []);
+
   const {
     getRootProps: getDropzoneRootProps,
     getInputProps: getDropzoneInputProps,
@@ -141,6 +187,7 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
     onDrop,
     noClick: true,
     noKeyboard: true,
+    getFilesFromEvent,
   });
 
   // Layout and DND logic
@@ -154,12 +201,10 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
     );
 
     try {
-      const stagingDirectoryName = modToEnable.path
-        .split(/[\\/]/)
-        .slice(-2, -1)[0];
+      // Pass the correct, sanitized mod name directly. Do not recalculate from path.
       const result = await window.electronAPI.enableMod(
         modToEnable.path,
-        stagingDirectoryName
+        modToEnable.name
       );
 
       if (result.success && result.activePath) {
@@ -977,7 +1022,11 @@ const ModManagerLayout: FC<ModManagerLayoutProps> = ({
               >
                 {t('common.cancel')}
               </Button>
-              <Button color="danger" variant="default" onClick={confirmDeleteMod}>
+              <Button
+                color="danger"
+                variant="default"
+                onClick={confirmDeleteMod}
+              >
                 {t('common.delete')}
               </Button>
             </DialogFooter>

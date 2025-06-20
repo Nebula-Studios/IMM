@@ -10,7 +10,6 @@ interface StagingPathConfig {
 
 export interface IElectronAPI {
   sendToMainLog: (level: string, message: string, ...args: unknown[]) => void;
-  getFilePath: (file: File) => string;
   getGameFolderPath: () => Promise<string | undefined>;
   openFolderDialog: () => Promise<string | null>;
   saveGameFolderPath: (folderPath: string) => Promise<{
@@ -21,16 +20,6 @@ export interface IElectronAPI {
   clearGameFolderPath: () => Promise<{
     success: boolean;
     message?: string;
-    error?: string;
-  }>;
-  checkModEnablerStatus: () => Promise<{
-    checked: boolean;
-    dsoundExists?: boolean;
-    bitfixFolderExists?: boolean;
-    error?: string;
-  }>;
-  installModEnabler: () => Promise<{
-    success: boolean;
     error?: string;
   }>;
   openExternalLink: (url: string) => Promise<void>;
@@ -102,8 +91,9 @@ export interface IElectronAPI {
     error?: string;
   }>;
 
-  // --- Process Dropped Mods Function ---
-  processDroppedMods: (files: File[]) => Promise<{
+  // --- Process Dropped Mods Functions ---
+  getPathForFile: (file: File) => string;
+  processDroppedModPaths: (filePaths: string[]) => Promise<{
     success: boolean;
     mods?: StagedModInfo[];
     error?: string;

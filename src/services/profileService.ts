@@ -5,7 +5,7 @@ import {
   updateProfileStoreState,
   getProfileStoreState,
 } from '../store/profileStore.js';
-import type { ModItem } from '../components/mod-management/ModCard.js'; // Corretto il percorso
+import { ModItem } from '../types/common.ts'; // Corretto il percorso
 import type { ModProfile, ModProfileConfig } from '../types/profiles.js'; // ProfileStoreState non è più usata direttamente qui
 // import { promises as fs } from 'fs'; // Rimosso: useremo IPC
 // import path from 'path'; // Rimosso: useremo IPC per i percorsi base e path.join solo se necessario localmente

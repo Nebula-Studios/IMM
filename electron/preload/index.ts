@@ -24,14 +24,6 @@ export const electronAPI = {
     error?: string;
   }> => ipcRenderer.invoke('clear-game-folder-path'),
 
-  // Mod Enabler Status
-  checkModEnablerStatus: (): Promise<{
-    checked: boolean;
-    dsoundExists?: boolean;
-    bitfixFolderExists?: boolean;
-    error?: string;
-  }> => ipcRenderer.invoke('check-mod-enabler-status'),
-
   // Shell operations
   openExternalLink: (url: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('open-external-link', url),
@@ -48,16 +40,13 @@ export const electronAPI = {
   setModStagingPath: () => ipcRenderer.invoke('set-mod-staging-path'),
   clearModStagingPath: () => ipcRenderer.invoke('clear-mod-staging-path'),
 
-  // --- Process Dropped Mods Function ---
-  processDroppedMods: (files: File[]) => {
-    // Use webUtils in the preload script to get the correct absolute paths
-    const filePaths = files.map(file => webUtils.getPathForFile(file));
-    return ipcRenderer.invoke('process-dropped-mods', filePaths);
+  // --- Process Dropped Mods Functions ---
+  // This must be called from the renderer for each file to preserve the object reference.
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  // This sends the sanitized paths to the main process.
+  processDroppedModPaths: (filePaths: string[]) => {
+    return ipcRenderer.invoke('process-dropped-mod-paths', filePaths);
   },
-
-  // --- Install Mod Enabler Function ---
-  installModEnabler: (): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('install-mod-enabler'),
 
   // --- Mod Enable/Disable Functions ---
   enableMod: (

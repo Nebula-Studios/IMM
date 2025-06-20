@@ -19,9 +19,6 @@ import {
 import {
   sanitizeDirectoryName,
   copyDirRecursive,
-  downloadAndVerifyFile,
-  fetchManifest,
-  getPayloadCacheDir,
   renumberRemainingActiveMods,
   synchronizeModStatesLogic,
   scanDirectoryForPaks,
@@ -102,33 +99,6 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
       }
     }
   );
-
-  // --- IPC Handlers for Mod Enabler ---
-  async function getModEnablerStatusInternal(gameFolderPath: string) {
-    const dsoundPath = nodePath.join(gameFolderPath, 'BlueClient', 'Binaries', 'Win64', 'dsound.dll');
-    const bitfixFolderPath = nodePath.join(gameFolderPath, 'BlueClient', 'Binaries', 'Win64', 'bitfix');
-    try {
-      const dsoundExists = fs.existsSync(dsoundPath);
-      const bitfixFolderExists = fs.existsSync(bitfixFolderPath) && fs.lstatSync(bitfixFolderPath).isDirectory();
-      return { dsoundExists, bitfixFolderExists };
-    } catch (error) {
-      log.error('[Main] Error checking mod enabler file/folder status:', error);
-      return { dsoundExists: false, bitfixFolderExists: false };
-    }
-  }
-
-  ipcMain.handle('check-mod-enabler-status', async () => {
-    const gameFolderPath = store.get('gameFolderPath');
-    if (!gameFolderPath) {
-      return { checked: false, error: 'Game folder path not set.' };
-    }
-    try {
-      const status = await getModEnablerStatusInternal(gameFolderPath);
-      return { checked: true, ...status };
-    } catch (error: any) {
-      return { checked: true, dsoundExists: false, bitfixFolderExists: false, error: error.message };
-    }
-  });
   
   // --- IPC Handler for Opening External Links ---
   ipcMain.handle('open-external-link', async (event, url: string) => {
@@ -144,7 +114,7 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
   });
 
   // --- IPC Handler for Dropped Mods ---
-  ipcMain.handle('process-dropped-mods', async (event, filePaths: string[]) => {
+  ipcMain.handle('process-dropped-mod-paths', async (event, filePaths: string[]) => {
     const stagingPath = getCurrentStagingPath();
     if (!fs.existsSync(stagingPath)) {
       fs.mkdirSync(stagingPath, { recursive: true });
@@ -331,88 +301,6 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
       return { success: false, error: error.message };
     }
   });
-  
-  // --- IPC Handlers for Mod Enabler Installation ---
-  ipcMain.handle('install-mod-enabler', async () => {
-      const gameFolderPath = store.get('gameFolderPath');
-      if (!gameFolderPath) {
-          return { success: false, error: 'Game folder path is not configured.' };
-      }
-      
-      const destinationDir = nodePath.join(gameFolderPath, 'BlueClient', 'Binaries', 'Win64');
-      const GITHUB_OWNER = 'Nebula-Studios';
-      const GITHUB_REPO = 'IMM';
-      const MANIFEST_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/manifest.json`;
-
-      try {
-        if (!fs.existsSync(destinationDir)) fs.mkdirSync(destinationDir, { recursive: true });
-
-        const cacheDir = getPayloadCacheDir();
-        // Clear cache to ensure fresh downloads
-        if (fs.existsSync(cacheDir)) {
-          fs.rmSync(cacheDir, { recursive: true, force: true });
-        }
-        fs.mkdirSync(cacheDir, { recursive: true });
-
-        const manifest = await fetchManifest(MANIFEST_URL);
-        const downloadId = uuidv4();
-        let finalPayloadFiles: { filename: string; localPath: string; sha256: string; }[] = [];
-        
-        win?.webContents.send('mod-enabler-install-progress', { stage: 'downloading', progress: 0 });
-
-        const manifestFiles = Object.entries(manifest.files);
-        for (let i = 0; i < manifestFiles.length; i++) {
-          const [fileKey, fileInfo] = manifestFiles[i];
-          
-          const progressCallback = (fileProgress: number) => {
-              const overallProgress = ((i / manifestFiles.length) * 100) + (fileProgress / manifestFiles.length);
-              win?.webContents.send('mod-enabler-install-progress', { stage: 'downloading', progress: Math.round(overallProgress), message: `Downloading ${fileKey}...` });
-          };
-
-          if (fileKey === 'payload') {
-              const tempZipPath = nodePath.join(cacheDir, `${downloadId}_payload.zip`);
-              await downloadAndVerifyFile(fileInfo.url, tempZipPath, fileInfo.sha256, progressCallback);
-              
-              const zip = new AdmZip(tempZipPath);
-              for (const entry of zip.getEntries()) {
-                  if (!entry.isDirectory) {
-                      const entryData = entry.getData();
-                      const entryFullPath = entry.entryName.replace(/\\/g, '/');
-                      const entryPath = nodePath.join(cacheDir, `${downloadId}_${entryFullPath.replace(/\//g, '_')}`);
-                      fs.writeFileSync(entryPath, entryData);
-                      
-                      const crypto = require('crypto');
-                      const entryHash = crypto.createHash('sha256').update(entryData).digest('hex');
-                      
-                      finalPayloadFiles.push({ filename: entryFullPath, localPath: entryPath, sha256: entryHash });
-                  }
-              }
-              fs.unlinkSync(tempZipPath);
-          } else {
-              // Handle other individual files if any
-          }
-        }
-        
-        win?.webContents.send('mod-enabler-install-progress', { stage: 'installing', progress: 0 });
-
-        for (let i = 0; i < finalPayloadFiles.length; i++) {
-          const file = finalPayloadFiles[i];
-          const destPath = nodePath.join(destinationDir, file.filename);
-          const destDir = nodePath.dirname(destPath);
-          if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-          fs.copyFileSync(file.localPath, destPath);
-          const progress = Math.round(((i + 1) / finalPayloadFiles.length) * 100);
-          win?.webContents.send('mod-enabler-install-progress', { stage: 'installing', progress, message: `Installing ${file.filename}...` });
-        }
-
-        win?.webContents.send('mod-enabler-install-progress', { stage: 'complete', progress: 100 });
-        return { success: true, version: manifest.version, message: 'Mod Enabler installed successfully.' };
-
-      } catch(error: any) {
-        win?.webContents.send('mod-enabler-install-progress', { stage: 'error', message: error.message });
-        return { success: false, error: `Failed to install Mod Enabler: ${error.message}` };
-      }
-  });
 
   // --- IPC Handlers for Mod Enable/Disable ---
   ipcMain.handle('enable-mod', async (event, modStagingPakPath: string, modName: string) => {
@@ -420,7 +308,16 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
     if (!fs.existsSync(gameModsPath)) await fsPromises.mkdir(gameModsPath, { recursive: true });
     
     try {
-      const sourceModDirectory = nodePath.dirname(modStagingPakPath);
+      const stagingPath = getCurrentStagingPath();
+      
+      // Correctly determine the root source directory of the mod within staging.
+      const relativePathFromStaging = nodePath.relative(stagingPath, modStagingPakPath);
+      if (relativePathFromStaging.startsWith('..') || nodePath.isAbsolute(relativePathFromStaging)) {
+        throw new Error('Security Error: Mod source path is outside of the staging directory.');
+      }
+      const modRootInStaging = relativePathFromStaging.split(nodePath.sep)[0];
+      const sourceModDirectory = nodePath.join(stagingPath, modRootInStaging);
+
       const itemsInGameModsDir = await fsPromises.readdir(gameModsPath);
       let maxIndex = -1;
       for (const item of itemsInGameModsDir) {
@@ -436,9 +333,9 @@ export function registerIpcHandlers(win: BrowserWindow | null) {
       const modFolderNameInGame = `${numericPrefix}_${modName}`;
       const destinationPathInGame = nodePath.join(gameModsPath, modFolderNameInGame);
 
-      // Use rename (move) instead of copy
-      await fsPromises.rename(sourceModDirectory, destinationPathInGame);
-      log.info(`[Enable Mod] Moved mod from ${sourceModDirectory} to ${destinationPathInGame}`);
+      // Use recursive copy instead of move to preserve the original staged mod
+      await copyDirRecursive(sourceModDirectory, destinationPathInGame);
+      log.info(`[Enable Mod] Copied mod from ${sourceModDirectory} to ${destinationPathInGame}`);
       
       return { 
         success: true, 

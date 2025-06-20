@@ -2,7 +2,6 @@
 
 import React, { useRef, useCallback } from 'react';
 import GameFolderSetup from '@/components/GameFolderSetup.tsx';
-import { ModEnablerStatusNotifier } from '@/components/ModEnablerStatusNotifier.tsx';
 import ModManagerLayout from './ModManagerLayout.tsx';
 import MenuBar from '@/components/layout/MenuBar.tsx';
 import SettingsDialog from '@/components/settings/SettingsDialog.tsx';
@@ -95,9 +94,6 @@ export default function AppContent({
 
   const renderMainContent = () => (
     <>
-      {gameFolderPath && (
-        <ModEnablerStatusNotifier gameFolderPath={gameFolderPath} />
-      )}
       <ModManagerLayout
         exposeRefreshFunction={exposeRefreshFunctionFromLayout}
       />

@@ -36,70 +36,6 @@ jobs:
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Prepare Payload for Release
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          # Create temporary directory for payload preparation
-          New-Item -ItemType Directory -Path "temp_payload_prep" -Force
-          
-          # Extract the existing payload.zip
-          Expand-Archive -Path "payload.zip" -DestinationPath "temp_payload_prep" -Force
-          
-          # Rename dsound.dllX to dsound.dll if it exists
-          $dllXPath = "temp_payload_prep/mod_enabler_payload/dsound.dllX"
-          $dllPath = "temp_payload_prep/mod_enabler_payload/dsound.dll"
-          if (Test-Path $dllXPath) {
-            Rename-Item -Path $dllXPath -NewName "dsound.dll"
-            Write-Host "Renamed dsound.dllX to dsound.dll"
-          }
-          
-          # Create new payload.zip with correct naming
-          if (Test-Path "release_payload.zip") { Remove-Item "release_payload.zip" -Force }
-          Compress-Archive -Path "temp_payload_prep/mod_enabler_payload/*" -DestinationPath "release_payload.zip" -CompressionLevel Optimal
-          
-          # Calculate SHA256 hash of the payload
-          $hash = (Get-FileHash -Path "release_payload.zip" -Algorithm SHA256).Hash.ToLower()
-          echo "PAYLOAD_SHA256=$hash" >> $env:GITHUB_OUTPUT
-          
-          # Get file size
-          $size = (Get-Item "release_payload.zip").Length
-          echo "PAYLOAD_SIZE=$size" >> $env:GITHUB_OUTPUT
-          
-          # Cleanup
-          Remove-Item -Path "temp_payload_prep" -Recurse -Force
-          
-          Write-Host "Payload prepared successfully"
-          Write-Host "SHA256: $hash"
-          Write-Host "Size: $size bytes"
-        shell: pwsh
-        id: prepare_payload
-
-      - name: Create Manifest JSON
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          $manifestContent = @{
-            version = "${{ steps.get_version.outputs.VERSION }}"
-            files = @{
-              payload = @{
-                url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/release_payload.zip"
-                sha256 = "${{ steps.prepare_payload.outputs.PAYLOAD_SHA256 }}"
-                size = [int]"${{ steps.prepare_payload.outputs.PAYLOAD_SIZE }}"
-              }
-            }
-            metadata = @{
-              description = "Payload files for Inzoi Mod Manager - Mod Enabler system"
-              created_at = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
-              compatible_versions = @("${{ steps.get_version.outputs.VERSION }}")
-            }
-          }
-          
-          $manifestJson = $manifestContent | ConvertTo-Json -Depth 4
-          $manifestJson | Out-File -FilePath "manifest.json" -Encoding UTF8
-          
-          Write-Host "Manifest created:"
-          Write-Host $manifestJson
-        shell: pwsh
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -110,7 +46,5 @@ jobs:
           files: |
             release/${{ steps.get_version.outputs.VERSION }}/*.exe
             release/${{ steps.get_version.outputs.VERSION }}/*.yml
-            release_payload.zip
-            manifest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

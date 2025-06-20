@@ -25,12 +25,6 @@ declare global {
         message?: string;
         error?: string;
       }>;
-      checkModEnablerStatus: () => Promise<{
-        checked: boolean;
-        dsoundExists?: boolean;
-        bitfixFolderExists?: boolean;
-        error?: string;
-      }>;
       openExternalLink: (url: string) => Promise<void>; // Aggiunto per coerenza con renderer.d.ts
       checkUpdate: () => Promise<any>; // Mantenuto per ora, da tipizzare meglio
       startDownload: () => Promise<any>; // Mantenuto per ora, da tipizzare meglio
